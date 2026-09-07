@@ -10,8 +10,8 @@ target/
 *.class
 *.jar
 !.mvn/wrapper/maven-wrapper.jar
-.mvn/apache-maven-*/
-.mvn/maven-bin.tar.gz
+**/.mvn/apache-maven-*/
+**/.mvn/maven-bin.tar.gz
 
 # ---- Env & local ----
 .env

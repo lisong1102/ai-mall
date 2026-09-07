@@ -1,0 +1,35 @@
+#!/bin/sh
+# 极简 Maven Wrapper：首次运行自动下载 Maven 到 .mvn/ 目录，无需本机安装 Maven。
+# 依赖源走项目内 .mvn/settings.xml 配置的阿里云镜像（国内网络友好）。
+set -e
+
+MAVEN_VERSION=3.9.9
+BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
+MAVEN_HOME="$BASE_DIR/.mvn/apache-maven-$MAVEN_VERSION"
+
+if [ ! -x "$MAVEN_HOME/bin/mvn" ]; then
+  echo "[mvnw] 未找到本地 Maven，开始下载 apache-maven-$MAVEN_VERSION ..."
+  mkdir -p "$BASE_DIR/.mvn"
+  TMP_TAR="$BASE_DIR/.mvn/maven-bin.tar.gz"
+  ok=""
+  for MIRROR in \
+    "https://mirrors.aliyun.com/apache/maven/maven-3/$MAVEN_VERSION/binaries/apache-maven-$MAVEN_VERSION-bin.tar.gz" \
+    "https://mirrors.tuna.tsinghua.edu.cn/apache/maven/maven-3/$MAVEN_VERSION/binaries/apache-maven-$MAVEN_VERSION-bin.tar.gz" \
+    "https://archive.apache.org/dist/maven/maven-3/$MAVEN_VERSION/binaries/apache-maven-$MAVEN_VERSION-bin.tar.gz"
+  do
+    echo "[mvnw] 尝试镜像: $MIRROR"
+    if curl -fL --connect-timeout 15 -o "$TMP_TAR" "$MIRROR"; then
+      ok=1
+      break
+    fi
+  done
+  if [ -z "$ok" ]; then
+    echo "[mvnw] 所有镜像均下载失败，请检查网络后重试" >&2
+    exit 1
+  fi
+  tar -xzf "$TMP_TAR" -C "$BASE_DIR/.mvn"
+  rm -f "$TMP_TAR"
+  echo "[mvnw] Maven 安装完成: $MAVEN_HOME"
+fi
+
+exec "$MAVEN_HOME/bin/mvn" -s "$BASE_DIR/.mvn/settings.xml" "$@"

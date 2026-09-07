@@ -1,0 +1,15 @@
+{
+  "name": "ai-mall",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n web,api -c blue,green \"pnpm --filter web dev\" \"./services/mall-api/mvnw -f services/mall-api/pom.xml spring-boot:run\"",
+    "dev:web": "pnpm --filter web dev",
+    "dev:api": "./services/mall-api/mvnw -f services/mall-api/pom.xml spring-boot:run",
+    "build:web": "pnpm --filter web build",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}

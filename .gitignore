@@ -1,0 +1,28 @@
+# ---- Node / Next ----
+node_modules/
+.next/
+out/
+dist/
+*.tsbuildinfo
+
+# ---- Java / Maven ----
+target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+.mvn/apache-maven-*/
+.mvn/maven-bin.tar.gz
+
+# ---- Env & local ----
+.env
+.env.local
+.env*.local
+
+# ---- IDE / OS ----
+.idea/
+.vscode/
+*.iml
+.DS_Store
+
+# ---- Logs ----
+*.log

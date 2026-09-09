@@ -6,22 +6,49 @@
 
 ## 阶段总览
 
-| 阶段 | 状态 | 完成日期 | 验证方式 | 备注 |
-|---|---|---|---|---|
-| P0 脚手架 | ✅ 完成 | 2026-09-07 | BFF /api/mall/health 返回 Java Result；首页显示"已连接 · mall-api" | |
-| P1 业务底座 | ⬜ 未开始 | | Swagger 全接口可用 + 后台商品/订单 CRUD 页面 | |
-| P2 AI 对话 | ⬜ 未开始 | | 页面内多轮流式对话 | |
-| P3 RAG 知识库 | ⬜ 未开始 | | 政策/FAQ 问答带引用 | |
-| P4 Tool Calling | ⬜ 未开始 | | 对话中查订单/物流/库存、创建售后 | |
-| P5 打磨 | ⬜ 未开始 | | 测试通过 + 演示录屏 | |
+| 阶段            | 状态      | 完成日期   | 验证方式                                                           | 备注 |
+| --------------- | --------- | ---------- | ------------------------------------------------------------------ | ---- |
+| P0 脚手架       | ✅ 完成   | 2026-09-07 | BFF /api/mall/health 返回 Java Result；首页显示"已连接 · mall-api" |      |
+| P1 业务底座     | ⬜ 未开始 |            | Swagger 全接口可用 + 后台商品/订单 CRUD 页面                       |      |
+| P2 AI 对话      | ⬜ 未开始 |            | 页面内多轮流式对话                                                 |      |
+| P3 RAG 知识库   | ⬜ 未开始 |            | 政策/FAQ 问答带引用                                                |      |
+| P4 Tool Calling | ⬜ 未开始 |            | 对话中查订单/物流/库存、创建售后                                   |      |
+| P5 打磨         | ⬜ 未开始 |            | 测试通过 + 演示录屏                                                |      |
+
+## 协作与学习约定
+
+- P1 及后续阶段均拆分为多个**小步骤**，每步聚焦一个可独立验证的功能点，避免一次性大改动。
+- 采用**交互式构建**：用户参与每一步的构建与学习，逐步推进；助手不在未经确认的情况下连续跨步实现。
+- 每步「先以基础为准，后续再扩展完善」——优先跑通最小闭环，字段、校验、UI 细节可迭代补充。
+- 每完成一步即更新本文件勾选状态，作为学习轨迹与回归对照。
 
 ## P0 任务清单
 
 - [x] 设计文档与进度文档
-- [ ] monorepo 根结构（pnpm workspace、docker-compose、.env.example）
-- [ ] services/mall-api Spring Boot 骨架（含健康检查接口）
-- [ ] apps/web Next.js 骨架（含 AI SDK / LangChain.js 依赖）
-- [ ] 验证：pnpm install、Maven 编译、前后端启动互通
+- [x] monorepo 根结构（pnpm workspace、docker-compose、.env.example）
+- [x] services/mall-api Spring Boot 骨架（含健康检查接口）
+- [x] apps/web Next.js 骨架（含 AI SDK / LangChain.js 依赖）
+- [x] 验证：pnpm install、Maven 编译、前后端启动互通
+
+## P1 任务清单（业务底座）
+
+> 目标：Java 商品/类目/客户/订单/售后 CRUD + Flyway + Swagger；Next 登录 + 管理后台 CRUD（BFF 调通 Java）。
+> 每步独立可验证；步骤间可在用户确认后继续。
+
+- [x] **P1.1 数据库建模**：Flyway 建表（category / product / customer / orders / order_item / after_sale），基础字段为主，外键约束
+  - 迁移脚本：`services/mall-api/src/main/resources/db/migration/V1__init_mall_schema.sql`
+  - 设计决策：主键 BIGINT 由应用层雪花算法生成；订单主表用 `orders`（`order` 是 PG 保留字）；订单明细存商品名/单价快照；`order_item` 跟随主订单级联删除
+  - 验证：启动 mall-api 时 Flyway 自动建表成功（v1）；mall schema 下 6 张业务表 + flyway_schema_history 共 7 张表；6 条外键约束均生效
+- [ ] **P1.2 Java 通用层 + 类目 CRUD**：MyBatis-Plus 分页配置、统一分页查询入参；Category 实体/Mapper/Service/Controller 全链路 + Swagger 注解
+- [ ] **P1.3 Java 商品 CRUD**：Product 实体（关联 category_id）、分页查询、上下架状态；Swagger
+- [ ] **P1.4 Java 客户 CRUD**：Customer 实体全链路 CRUD
+- [ ] **P1.5 Java 订单 CRUD**：Order + OrderItem（一对多）事务化创建、订单状态字段
+- [ ] **P1.6 Java 售后 CRUD**：AfterSale（关联 order_id）、基础状态流转（申请/审核/完成）
+- [ ] **P1.7 Next BFF + 数据请求层**：/api/mall/\* 转发封装（统一 fetch 函数）、TanStack Query 基础封装
+- [ ] **P1.8 Next 登录 + 管理后台布局**：Auth.js v5 简单登录（Credentials Provider mock）、侧边栏布局骨架
+- [ ] **P1.9 Next 商品/类目管理页**：列表 + 新增/编辑（react-hook-form + zod）
+- [ ] **P1.10 Next 订单/售后/客户页**：列表 + 详情查看
+- [ ] **P1.11 联调冒烟 + 进度更新**：Swagger 全接口可用、BFF 调通、管理后台 CRUD 跑通；更新本表
 
 ## 环境要求（新机器快速预览）
 

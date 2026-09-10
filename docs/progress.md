@@ -63,7 +63,10 @@
   - 新增 8 个文件：`entity/AfterSale`（type 1仅退款/2退货退款；status 0申请中/1审核通过/2已完成/3已拒绝）、`mapper/AfterSaleMapper` + `mapper/AfterSaleMapper.xml`、`service/AfterSaleService(Impl)`、`controller/AfterSaleController` + `controller/dto/{AfterSaleVO,AfterSaleSaveReq}`；另在 `GlobalExceptionHandler` 增 `IllegalArgumentException` 处理（业务校验失败返回 400）
   - 设计决策：AfterSaleMapper.xml 联表 orders（取 order_no）+ customer（取 customer_name）；状态流转带校验——`review(id,pass)` 仅 status=0 可调用（pass=true→1 通过，false→3 拒绝），`complete(id)` 仅 status=1 可调用（→2 完成），非法流转抛 IllegalArgumentException 由全局处理器转 400；申请接口 `POST /api/after-sales` 固定 status=0；状态流转走 `PUT /api/after-sales/{id}/review` 与 `PUT /api/after-sales/{id}/complete`
   - 验证：`./mvnw compile` BUILD SUCCESS，AfterSale/VO/DTO 等类均生成
-- [ ] **P1.7 Next BFF + 数据请求层**：/api/mall/\* 转发封装（统一 fetch 函数）、TanStack Query 基础封装
+- [x] **P1.7 Next BFF + 数据请求层**：/api/mall/\* 转发封装（统一 fetch 函数）、TanStack Query 基础封装
+  - 新增 4 个文件：`app/api/mall/[...path]/route.ts`（catch-all 代理，替代 P0 的 health 单路由，GET/POST/PUT/DELETE/PATCH 透传 query+body+状态码，Java 不可达时返回 503 Result 包装）、`lib/mall.ts`（浏览器端 mallFetch：固定走同源 /api/mall 前缀，解包 Result，code≠0 或网络错误抛 Error 交给 Query error 态；导出 Result/PageResult 类型）、`app/providers.tsx`（QueryClientProvider，useState 保证每会话单实例，staleTime 30s / retry 1）、`components/category-list.tsx`（P1.7 验证组件）
+  - 设计决策：代理只透传 content-type 头（host 等 hop-by-hop 头不转发），后续登录态统一在代理层注入；catch-all 覆盖 /api/mall/health 故删除旧 health/route.ts；QueryClient 默认 options 在 Provider 集中配置
+  - 验证：`pnpm lint` / `pnpm build` 通过（路由表含 ƒ /api/mall/[...path]）；curl 经 BFF 完成 GET health、GET categories（分页+模糊参数透传）、POST 新增/校验失败 400 透传、DELETE 删除；首页 CategoryList 客户端组件经 TanStack Query → BFF 拉取类目列表渲染
 - [ ] **P1.8 Next 登录 + 管理后台布局**：Auth.js v5 简单登录（Credentials Provider mock）、侧边栏布局骨架
 - [ ] **P1.9 Next 商品/类目管理页**：列表 + 新增/编辑（react-hook-form + zod）
 - [ ] **P1.10 Next 订单/售后/客户页**：列表 + 详情查看

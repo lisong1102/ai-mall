@@ -1,3 +1,5 @@
+import CategoryList from "@/components/category-list";
+
 type HealthResult = {
   code: number;
   message: string;
@@ -36,11 +38,14 @@ export default async function Home() {
         </div>
 
         <p className="text-sm text-zinc-500">
-          本页由服务端直接请求 Java /api/health 渲染；客户端联调请走 BFF：
+          本页健康状态由服务端直接请求 Java /api/health 渲染；客户端联调请走
+          BFF：
           <code className="mx-1 rounded bg-zinc-100 px-1 dark:bg-zinc-800">
-            /api/mall/health
+            /api/mall/*
           </code>
         </p>
+
+        <CategoryList />
 
         <p className="text-sm text-zinc-500">
           启动方式见根目录 README 与 docs/progress.md

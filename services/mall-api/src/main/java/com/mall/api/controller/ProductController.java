@@ -4,6 +4,7 @@ import com.mall.api.common.PageQuery;
 import com.mall.api.common.PageResult;
 import com.mall.api.common.Result;
 import com.mall.api.controller.dto.ProductSaveReq;
+import com.mall.api.controller.dto.ProductVO;
 import com.mall.api.entity.Product;
 import com.mall.api.service.ProductService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -28,18 +29,18 @@ public class ProductController {
     private final ProductService productService;
 
     @GetMapping
-    @Operation(summary = "分页查询商品", description = "可按名称模糊搜索、按类目与上下架状态精确过滤")
-    public Result<PageResult<Product>> page(@ParameterObject PageQuery query,
-                                            @Parameter(description = "商品名模糊关键字") @RequestParam(required = false) String name,
-                                            @Parameter(description = "类目ID") @RequestParam(required = false) Long categoryId,
-                                            @Parameter(description = "上下架状态：1上架 0下架") @RequestParam(required = false) Integer status) {
+    @Operation(summary = "分页查询商品", description = "可按名称模糊搜索、按类目与上下架状态精确过滤，联表返回类目名")
+    public Result<PageResult<ProductVO>> page(@ParameterObject PageQuery query,
+                                              @Parameter(description = "商品名模糊关键字") @RequestParam(required = false) String name,
+                                              @Parameter(description = "类目ID") @RequestParam(required = false) Long categoryId,
+                                              @Parameter(description = "上下架状态：1上架 0下架") @RequestParam(required = false) Integer status) {
         return Result.ok(productService.page(query.getPage(), query.getSize(), name, categoryId, status));
     }
 
     @GetMapping("/{id}")
-    @Operation(summary = "查询商品详情")
-    public Result<Product> get(@PathVariable Long id) {
-        return Result.ok(productService.getById(id));
+    @Operation(summary = "查询商品详情", description = "联表返回类目名")
+    public Result<ProductVO> get(@PathVariable Long id) {
+        return Result.ok(productService.getVOById(id));
     }
 
     @PostMapping

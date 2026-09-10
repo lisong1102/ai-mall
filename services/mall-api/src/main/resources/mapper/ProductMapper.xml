@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+    Product 联表查询：商品 LEFT JOIN 类目，取出 categoryName 供前端展示。
+    列别名 category_name 配合 application.yml 的 map-underscore-to-camel-case=true
+    自动映射到 ProductVO.categoryName。
+    分页方法 selectProductPage 的首参为 IPage，分页插件会自动追加 LIMIT/OFFSET 与 COUNT。
+-->
+<mapper namespace="com.mall.api.mapper.ProductMapper">
+
+    <sql id="productColumns">
+        p.id, p.name, p.category_id, c.name AS category_name,
+        p.price, p.stock, p.status, p.description, p.cover_image,
+        p.created_at, p.updated_at
+    </sql>
+
+    <select id="selectProductPage" resultType="com.mall.api.controller.dto.ProductVO">
+        SELECT <include refid="productColumns"/>
+        FROM product p
+        LEFT JOIN category c ON p.category_id = c.id
+        <where>
+            <if test="name != null and name != ''">
+                AND p.name LIKE CONCAT('%', #{name}, '%')
+            </if>
+            <if test="categoryId != null">
+                AND p.category_id = #{categoryId}
+            </if>
+            <if test="status != null">
+                AND p.status = #{status}
+            </if>
+        </where>
+        ORDER BY p.created_at DESC, p.id DESC
+    </select>
+
+    <select id="selectProductVOById" resultType="com.mall.api.controller.dto.ProductVO">
+        SELECT <include refid="productColumns"/>
+        FROM product p
+        LEFT JOIN category c ON p.category_id = c.id
+        WHERE p.id = #{id}
+    </select>
+
+</mapper>

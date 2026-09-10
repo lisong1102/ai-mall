@@ -47,9 +47,10 @@
     2. **springdoc 2.6.0 与 Spring Boot 3.4.1 不兼容**：`NoSuchMethodError: ControllerAdviceBean.<init>(Object)`（Spring Framework 6.2 改了构造方法签名）。升级 springdoc 到 2.8.6 修复
   - 验证：Category 全链路 CRUD（新增/分页/模糊查/详情/修改/删除/校验失败）curl 全部通过；Swagger UI `/swagger-ui/index.html` 与 `/v3/api-docs` 返回 200，列出 3 个路径 6 个接口
 - [x] **P1.3 Java 商品 CRUD**：Product 实体（关联 category_id）、分页查询、上下架状态；Swagger
-  - 新增 6 个 Java 文件：`entity/Product`（price=BigDecimal、stock、status 1上架/0下架、description、coverImage）、`mapper/ProductMapper`、`service/ProductService(Impl)`、`controller/ProductController` + `controller/dto/ProductSaveReq`
-  - 设计决策：沿用 P1.2 的 Category 全链路模式（ServiceImpl 继承 ServiceImpl<Mapper,Entity>、LambdaQueryWrapper、PageResult、MetaObjectHandler 自动填充时间）；商品名模糊查 + 类目/状态精确过滤；上下架走独立的 `PUT /api/products/{id}/status` 接口（progress.md 明确要求"上下架状态"）；上下架用 `lambdaUpdate().set()` 链式更新只改 status 字段；排序按 createdAt/id 倒序（新上架在前）
-  - 验证：Product 全链路 CRUD（新增/分页/模糊查/详情/修改/下架切换/状态过滤/类目过滤/删除）curl 全部通过；校验失败（空名+负库存→合并报错、缺 categoryId→400）通过；updatedAt 自动更新证明 MetaObjectHandler 生效；Swagger UI 200，api-docs 收录 3 个商品路径共 7 个接口
+  - 新增 7 个文件：`entity/Product`（price=BigDecimal、stock、status 1上架/0下架、description、coverImage）、`mapper/ProductMapper` + `mapper/ProductMapper.xml`、`service/ProductService(Impl)`、`controller/ProductController` + `controller/dto/ProductSaveReq` + `controller/dto/ProductVO`
+  - 设计决策：沿用 P1.2 的 Category 全链路模式（ServiceImpl 继承 ServiceImpl<Mapper,Entity>、PageResult、MetaObjectHandler 自动填充时间）；商品名模糊查 + 类目/状态精确过滤；上下架走独立的 `PUT /api/products/{id}/status` 接口（progress.md 明确要求"上下架状态"）；上下架用 `lambdaUpdate().set()` 链式更新只改 status 字段；排序按 createdAt/id 倒序（新上架在前）
+  - **类目名联表查询（方案 B）**：列表/详情返回 `ProductVO`（Product 字段 + `categoryName`），避免前端 N+1 请求查类目名。实现走 `resources/mapper/ProductMapper.xml` 的 `LEFT JOIN category c ON p.category_id = c.id` + `<where>` 动态条件（`<if>` 拼 name/categoryId/status），列别名 `category_name` 配合 `map-underscore-to-camel-case=true` 自动映射 VO；分页方法首参为 `IPage<ProductVO>`，分页插件自动追加 LIMIT/OFFSET/COUNT
+  - 验证：Product 全链路 CRUD（新增/分页/模糊查/详情/修改/下架切换/状态过滤/类目过滤/删除）curl 全部通过；列表与详情均返回 `categoryName` 字段（值为「手机」）；校验失败（空名+负库存→合并报错、缺 categoryId→400）通过；updatedAt 自动更新证明 MetaObjectHandler 生效；Swagger UI 200，api-docs 收录 3 个商品路径共 7 个接口
 - [ ] **P1.4 Java 客户 CRUD**：Customer 实体全链路 CRUD
 - [ ] **P1.5 Java 订单 CRUD**：Order + OrderItem（一对多）事务化创建、订单状态字段
 - [ ] **P1.6 Java 售后 CRUD**：AfterSale（关联 order_id）、基础状态流转（申请/审核/完成）

@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+    AfterSale 联表查询：售后 LEFT JOIN 订单（取 order_no）+ 客户（取 customer_name）。
+    列别名 order_no / customer_name 配合 application.yml 的 map-underscore-to-camel-case=true
+    自动映射到 AfterSaleVO 对应字段。
+    分页方法 selectAfterSalePage 的首参为 IPage，分页插件会自动追加 LIMIT/OFFSET 与 COUNT。
+-->
+<mapper namespace="com.mall.api.mapper.AfterSaleMapper">
+    <!-- 售后查询字段 -->
+    <sql id="afterSaleColumns">
+        a.id, a.order_id, o.order_no, a.customer_id, c.name AS customer_name,
+        a.type, a.reason, a.status, a.refund_amount,
+        a.created_at, a.updated_at
+    </sql>
+
+    <select id="selectAfterSalePage" resultType="com.mall.api.controller.dto.AfterSaleVO">
+        SELECT <include refid="afterSaleColumns"/>
+        FROM after_sale a
+        LEFT JOIN orders o   ON a.order_id = o.id
+        LEFT JOIN customer c ON a.customer_id = c.id
+        <where>
+            <if test="orderId != null">
+                AND a.order_id = #{orderId}
+            </if>
+            <if test="customerId != null">
+                AND a.customer_id = #{customerId}
+            </if>
+            <if test="status != null">
+                AND a.status = #{status}
+            </if>
+        </where>
+        ORDER BY a.created_at DESC, a.id DESC
+    </select>
+
+    <select id="selectAfterSaleVOById" resultType="com.mall.api.controller.dto.AfterSaleVO">
+        SELECT <include refid="afterSaleColumns"/>
+        FROM after_sale a
+        LEFT JOIN orders o   ON a.order_id = o.id
+        LEFT JOIN customer c ON a.customer_id = c.id
+        WHERE a.id = #{id}
+    </select>
+
+</mapper>

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+    Order 联表查询：订单 LEFT JOIN 客户，取出 customerName 供前端展示。
+    列别名 customer_name 配合 application.yml 的 map-underscore-to-camel-case=true
+    自动映射到 OrderVO.customerName。
+    分页方法 selectOrderPage 的首参为 IPage，分页插件会自动追加 LIMIT/OFFSET 与 COUNT。
+-->
+<mapper namespace="com.mall.api.mapper.OrderMapper">
+    <!-- 订单查询字段 -->
+    <sql id="orderColumns">
+        o.id, o.order_no, o.customer_id, c.name AS customer_name,
+        o.total_amount, o.status, o.remark,
+        o.created_at, o.updated_at
+    </sql>
+
+    <select id="selectOrderPage" resultType="com.mall.api.controller.dto.OrderVO">
+        SELECT <include refid="orderColumns"/>
+        FROM orders o
+        LEFT JOIN customer c ON o.customer_id = c.id
+        <where>
+            <if test="orderNo != null and orderNo != ''">
+                AND o.order_no LIKE CONCAT('%', #{orderNo}, '%')
+            </if>
+            <if test="customerId != null">
+                AND o.customer_id = #{customerId}
+            </if>
+            <if test="status != null">
+                AND o.status = #{status}
+            </if>
+        </where>
+        ORDER BY o.created_at DESC, o.id DESC
+    </select>
+
+    <select id="selectOrderVOById" resultType="com.mall.api.controller.dto.OrderVO">
+        SELECT <include refid="orderColumns"/>
+        FROM orders o
+        LEFT JOIN customer c ON o.customer_id = c.id
+        WHERE o.id = #{id}
+    </select>
+
+</mapper>

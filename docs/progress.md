@@ -51,9 +51,18 @@
   - 设计决策：沿用 P1.2 的 Category 全链路模式（ServiceImpl 继承 ServiceImpl<Mapper,Entity>、PageResult、MetaObjectHandler 自动填充时间）；商品名模糊查 + 类目/状态精确过滤；上下架走独立的 `PUT /api/products/{id}/status` 接口（progress.md 明确要求"上下架状态"）；上下架用 `lambdaUpdate().set()` 链式更新只改 status 字段；排序按 createdAt/id 倒序（新上架在前）
   - **类目名联表查询（方案 B）**：列表/详情返回 `ProductVO`（Product 字段 + `categoryName`），避免前端 N+1 请求查类目名。实现走 `resources/mapper/ProductMapper.xml` 的 `LEFT JOIN category c ON p.category_id = c.id` + `<where>` 动态条件（`<if>` 拼 name/categoryId/status），列别名 `category_name` 配合 `map-underscore-to-camel-case=true` 自动映射 VO；分页方法首参为 `IPage<ProductVO>`，分页插件自动追加 LIMIT/OFFSET/COUNT
   - 验证：Product 全链路 CRUD（新增/分页/模糊查/详情/修改/下架切换/状态过滤/类目过滤/删除）curl 全部通过；列表与详情均返回 `categoryName` 字段（值为「手机」）；校验失败（空名+负库存→合并报错、缺 categoryId→400）通过；updatedAt 自动更新证明 MetaObjectHandler 生效；Swagger UI 200，api-docs 收录 3 个商品路径共 7 个接口
-- [ ] **P1.4 Java 客户 CRUD**：Customer 实体全链路 CRUD
-- [ ] **P1.5 Java 订单 CRUD**：Order + OrderItem（一对多）事务化创建、订单状态字段
-- [ ] **P1.6 Java 售后 CRUD**：AfterSale（关联 order_id）、基础状态流转（申请/审核/完成）
+- [x] **P1.4 Java 客户 CRUD**：Customer 实体全链路 CRUD
+  - 新增 6 个 Java 文件：`entity/Customer`（name/phone/email/address）、`mapper/CustomerMapper`、`service/CustomerService(Impl)`、`controller/CustomerController` + `controller/dto/CustomerSaveReq`
+  - 设计决策：沿用 P1.2 的 Category 单表模式（ServiceImpl 继承 + LambdaQueryWrapper）；模糊查关键字同时匹配姓名与手机号（OR），按 createdAt 倒序（新客户在前）；邮箱用 `@Email` 校验格式
+  - 验证：`./mvnw compile` BUILD SUCCESS，Customer/Controller/DTO 等类均生成
+- [x] **P1.5 Java 订单 CRUD**：Order + OrderItem（一对多）事务化创建、订单状态字段
+  - 新增 12 个文件：`entity/Order`（@TableName("orders")，order 为 PG 保留字；status 0待付款/1已付款/2已发货/3已完成/4已取消）、`entity/OrderItem`（仅 createdAt，无 updated_at；保存商品名/单价快照）、`mapper/OrderMapper` + `mapper/OrderItemMapper` + `mapper/OrderMapper.xml`、`service/OrderService(Impl)`、`controller/OrderController` + `controller/dto/{OrderVO,OrderItemVO,OrderSaveReq,OrderItemReq}`
+  - 设计决策：createOrder 用 `@Transactional(rollbackFor=Exception.class)` 包裹，先生成订单号 `ORD+yyyyMMddHHmmssSSS+3位随机`、再汇总明细小计得 totalAmount、再插主表+明细；OrderMapper.xml 联表 customer 取 customerName（列表与详情均带），明细在详情接口单独查并填充（避免列表拉取明细）；状态切换走独立 `PUT /api/orders/{id}/status`；明细通过外键 `ON DELETE CASCADE` 跟随主订单级联删除；OrderSaveReq 用 `@Valid + @NotEmpty` 触发明细级联校验
+  - 验证：`./mvnw compile` BUILD SUCCESS，Order/OrderItem/VO/DTO 等类均生成
+- [x] **P1.6 Java 售后 CRUD**：AfterSale（关联 order_id）、基础状态流转（申请/审核/完成）
+  - 新增 8 个文件：`entity/AfterSale`（type 1仅退款/2退货退款；status 0申请中/1审核通过/2已完成/3已拒绝）、`mapper/AfterSaleMapper` + `mapper/AfterSaleMapper.xml`、`service/AfterSaleService(Impl)`、`controller/AfterSaleController` + `controller/dto/{AfterSaleVO,AfterSaleSaveReq}`；另在 `GlobalExceptionHandler` 增 `IllegalArgumentException` 处理（业务校验失败返回 400）
+  - 设计决策：AfterSaleMapper.xml 联表 orders（取 order_no）+ customer（取 customer_name）；状态流转带校验——`review(id,pass)` 仅 status=0 可调用（pass=true→1 通过，false→3 拒绝），`complete(id)` 仅 status=1 可调用（→2 完成），非法流转抛 IllegalArgumentException 由全局处理器转 400；申请接口 `POST /api/after-sales` 固定 status=0；状态流转走 `PUT /api/after-sales/{id}/review` 与 `PUT /api/after-sales/{id}/complete`
+  - 验证：`./mvnw compile` BUILD SUCCESS，AfterSale/VO/DTO 等类均生成
 - [ ] **P1.7 Next BFF + 数据请求层**：/api/mall/\* 转发封装（统一 fetch 函数）、TanStack Query 基础封装
 - [ ] **P1.8 Next 登录 + 管理后台布局**：Auth.js v5 简单登录（Credentials Provider mock）、侧边栏布局骨架
 - [ ] **P1.9 Next 商品/类目管理页**：列表 + 新增/编辑（react-hook-form + zod）

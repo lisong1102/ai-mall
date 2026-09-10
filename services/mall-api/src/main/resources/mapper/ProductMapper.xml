@@ -8,7 +8,7 @@
     分页方法 selectProductPage 的首参为 IPage，分页插件会自动追加 LIMIT/OFFSET 与 COUNT。
 -->
 <mapper namespace="com.mall.api.mapper.ProductMapper">
-
+    <!-- 商品查询字段 -->
     <sql id="productColumns">
         p.id, p.name, p.category_id, c.name AS category_name,
         p.price, p.stock, p.status, p.description, p.cover_image,

@@ -27,6 +27,13 @@ public class GlobalExceptionHandler {
         return Result.error(400, message);
     }
 
+    /** 业务校验失败（如非法的状态流转），返回 400 */
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    @ExceptionHandler(IllegalArgumentException.class)
+    public Result<Void> handleBusinessRule(IllegalArgumentException e) {
+        return Result.error(400, e.getMessage());
+    }
+
     /** 兜底 */
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     @ExceptionHandler(Exception.class)

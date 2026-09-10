@@ -39,8 +39,17 @@
   - 迁移脚本：`services/mall-api/src/main/resources/db/migration/V1__init_mall_schema.sql`
   - 设计决策：主键 BIGINT 由应用层雪花算法生成；订单主表用 `orders`（`order` 是 PG 保留字）；订单明细存商品名/单价快照；`order_item` 跟随主订单级联删除
   - 验证：启动 mall-api 时 Flyway 自动建表成功（v1）；mall schema 下 6 张业务表 + flyway_schema_history 共 7 张表；6 条外键约束均生效
-- [ ] **P1.2 Java 通用层 + 类目 CRUD**：MyBatis-Plus 分页配置、统一分页查询入参；Category 实体/Mapper/Service/Controller 全链路 + Swagger 注解
-- [ ] **P1.3 Java 商品 CRUD**：Product 实体（关联 category_id）、分页查询、上下架状态；Swagger
+- [x] **P1.2 Java 通用层 + 类目 CRUD**：MyBatis-Plus 分页配置、统一分页查询入参；Category 实体/Mapper/Service/Controller 全链路 + Swagger 注解
+  - 新增 11 个 Java 文件：`config/`（分页插件 + MetaObjectHandler 时间戳填充）、`common/`（PageQuery 入参 + PageResult 出参）、`entity/Category`、`mapper/CategoryMapper`、`service/CategoryService(Impl)`、`controller/CategoryController` + `controller/dto/CategorySaveReq`
+  - 设计决策：主键 `@TableId(ASSIGN_ID)` 雪花算法；`createdAt/updatedAt` 用 `@TableField(fill=...)` + MetaObjectHandler 自动填充；`PageQuery.getSize()` 限 100 防拖垮 DB
+  - 修复 2 个兼容性问题：
+    1. **TIMESTAMPTZ → LocalDateTime 不兼容**：PG JDBC 驱动对带时区类型返回 `OffsetDateTime`，无法直接映射 `LocalDateTime`。新增 `V2__timestamptz_to_timestamp.sql` 把所有时间列改为 `TIMESTAMP`（时区由 Spring Jackson 的 Asia/Shanghai 统一处理）
+    2. **springdoc 2.6.0 与 Spring Boot 3.4.1 不兼容**：`NoSuchMethodError: ControllerAdviceBean.<init>(Object)`（Spring Framework 6.2 改了构造方法签名）。升级 springdoc 到 2.8.6 修复
+  - 验证：Category 全链路 CRUD（新增/分页/模糊查/详情/修改/删除/校验失败）curl 全部通过；Swagger UI `/swagger-ui/index.html` 与 `/v3/api-docs` 返回 200，列出 3 个路径 6 个接口
+- [x] **P1.3 Java 商品 CRUD**：Product 实体（关联 category_id）、分页查询、上下架状态；Swagger
+  - 新增 6 个 Java 文件：`entity/Product`（price=BigDecimal、stock、status 1上架/0下架、description、coverImage）、`mapper/ProductMapper`、`service/ProductService(Impl)`、`controller/ProductController` + `controller/dto/ProductSaveReq`
+  - 设计决策：沿用 P1.2 的 Category 全链路模式（ServiceImpl 继承 ServiceImpl<Mapper,Entity>、LambdaQueryWrapper、PageResult、MetaObjectHandler 自动填充时间）；商品名模糊查 + 类目/状态精确过滤；上下架走独立的 `PUT /api/products/{id}/status` 接口（progress.md 明确要求"上下架状态"）；上下架用 `lambdaUpdate().set()` 链式更新只改 status 字段；排序按 createdAt/id 倒序（新上架在前）
+  - 验证：Product 全链路 CRUD（新增/分页/模糊查/详情/修改/下架切换/状态过滤/类目过滤/删除）curl 全部通过；校验失败（空名+负库存→合并报错、缺 categoryId→400）通过；updatedAt 自动更新证明 MetaObjectHandler 生效；Swagger UI 200，api-docs 收录 3 个商品路径共 7 个接口
 - [ ] **P1.4 Java 客户 CRUD**：Customer 实体全链路 CRUD
 - [ ] **P1.5 Java 订单 CRUD**：Order + OrderItem（一对多）事务化创建、订单状态字段
 - [ ] **P1.6 Java 售后 CRUD**：AfterSale（关联 order_id）、基础状态流转（申请/审核/完成）

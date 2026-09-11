@@ -1,12 +1,15 @@
 {
   "name": "ai-mall",
   "private": true,
+  "packageManager": "pnpm@10.10.0",
   "scripts": {
-    "dev": "concurrently -n web,api -c blue,green \"pnpm --filter web dev\" \"./services/mall-api/mvnw -f services/mall-api/pom.xml spring-boot:run\"",
+    "dev": "concurrently -n web,ai,api -c blue,magenta,green \"pnpm --filter web dev\" \"pnpm --filter ai dev\" \"./services/mall-api/mvnw -f services/mall-api/pom.xml spring-boot:run\"",
     "dev:web": "pnpm --filter web dev",
+    "dev:ai": "pnpm --filter ai dev",
     "dev:api": "./services/mall-api/mvnw -f services/mall-api/pom.xml spring-boot:run",
     "build:web": "pnpm --filter web build",
-    "db:up": "docker compose up -d",
+    "build:ai": "pnpm --filter ai build",
+    "db:up": "docker compose up -d postgres",
     "db:down": "docker compose down"
   },
   "devDependencies": {

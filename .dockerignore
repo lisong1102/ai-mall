@@ -1,0 +1,9 @@
+**/node_modules
+**/.next
+**/dist
+**/target
+**/.idea
+**/.turbo
+docs
+*.log
+.git

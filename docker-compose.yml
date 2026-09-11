@@ -17,5 +17,50 @@ services:
       timeout: 3s
       retries: 10
 
+  # Java 业务服务：仅内网，经 nginx 反向代理暴露
+  mall-api:
+    build: ./services/mall-api
+    container_name: ai-mall-api
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ai_mall
+      POSTGRES_USER: mall
+      POSTGRES_PASSWORD: mall
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # AI 服务（Next.js 纯 API）：仅内网，服务端调 Java 走容器网络
+  ai-service:
+    build:
+      context: .
+      dockerfile: apps/ai/Dockerfile
+    container_name: ai-mall-ai
+    environment:
+      MALL_API_BASE: http://mall-api:8080
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ai_mall
+      POSTGRES_USER: mall
+      POSTGRES_PASSWORD: mall
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mall-api:
+        condition: service_started
+
+  # 入口层：nginx 托管前端静态产物并反代两个后端，唯一对外端口
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: ai-mall-web
+    ports:
+      - "80:80"
+    depends_on:
+      - mall-api
+      - ai-service
+
 volumes:
   pgdata:

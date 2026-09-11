@@ -3,6 +3,7 @@
 > 每完成一个阶段/任务就更新此表，作为回归对照与项目快速预览入口。
 > 设计细节见 [specs/2026-09-07-ai-mall-design.md](superpowers/specs/2026-09-07-ai-mall-design.md)
 > 变更记录：2026-09-07 主题由「智能校园」改为「电商」，目录 smart-campus → ai-mall
+> 变更记录：2026-09-11 架构拆分——前端抽离为 apps/web（Vite + TanStack Router/Query 纯 SPA）；原 Next 应用改为 apps/ai 纯 AI API 服务（端口 3001）；商城流量前端直连 Java（dev Vite proxy / prod nginx），/api/mall 不再经 Next 转发；新增三端 Dockerfile + nginx + compose 全栈编排
 
 ## 阶段总览
 
@@ -27,12 +28,12 @@
 - [x] 设计文档与进度文档
 - [x] monorepo 根结构（pnpm workspace、docker-compose、.env.example）
 - [x] services/mall-api Spring Boot 骨架（含健康检查接口）
-- [x] apps/web Next.js 骨架（含 AI SDK / LangChain.js 依赖）
+- [x] apps/web Next.js 骨架（含 AI SDK / LangChain.js 依赖）——2026-09-11 架构拆分后演变为 apps/ai（AI 服务）+ apps/web（Vite 前端）
 - [x] 验证：pnpm install、Maven 编译、前后端启动互通
 
 ## P1 任务清单（业务底座）
 
-> 目标：Java 商品/类目/客户/订单/售后 CRUD + Flyway + Swagger；Next 登录 + 管理后台 CRUD（BFF 调通 Java）。
+> 目标：Java 商品/类目/客户/订单/售后 CRUD + Flyway + Swagger；前端登录 + 管理后台 CRUD（经 Vite proxy 直连 Java）。
 > 每步独立可验证；步骤间可在用户确认后继续。
 
 - [x] **P1.1 数据库建模**：Flyway 建表（category / product / customer / orders / order_item / after_sale），基础字段为主，外键约束
@@ -63,14 +64,15 @@
   - 新增 8 个文件：`entity/AfterSale`（type 1仅退款/2退货退款；status 0申请中/1审核通过/2已完成/3已拒绝）、`mapper/AfterSaleMapper` + `mapper/AfterSaleMapper.xml`、`service/AfterSaleService(Impl)`、`controller/AfterSaleController` + `controller/dto/{AfterSaleVO,AfterSaleSaveReq}`；另在 `GlobalExceptionHandler` 增 `IllegalArgumentException` 处理（业务校验失败返回 400）
   - 设计决策：AfterSaleMapper.xml 联表 orders（取 order_no）+ customer（取 customer_name）；状态流转带校验——`review(id,pass)` 仅 status=0 可调用（pass=true→1 通过，false→3 拒绝），`complete(id)` 仅 status=1 可调用（→2 完成），非法流转抛 IllegalArgumentException 由全局处理器转 400；申请接口 `POST /api/after-sales` 固定 status=0；状态流转走 `PUT /api/after-sales/{id}/review` 与 `PUT /api/after-sales/{id}/complete`
   - 验证：`./mvnw compile` BUILD SUCCESS，AfterSale/VO/DTO 等类均生成
-- [x] **P1.7 Next BFF + 数据请求层**：/api/mall/\* 转发封装（统一 fetch 函数）、TanStack Query 基础封装
-  - 新增 4 个文件：`app/api/mall/[...path]/route.ts`（catch-all 代理，替代 P0 的 health 单路由，GET/POST/PUT/DELETE/PATCH 透传 query+body+状态码，Java 不可达时返回 503 Result 包装）、`lib/mall.ts`（浏览器端 mallFetch：固定走同源 /api/mall 前缀，解包 Result，code≠0 或网络错误抛 Error 交给 Query error 态；导出 Result/PageResult 类型）、`app/providers.tsx`（QueryClientProvider，useState 保证每会话单实例，staleTime 30s / retry 1）、`components/category-list.tsx`（P1.7 验证组件）
-  - 设计决策：代理只透传 content-type 头（host 等 hop-by-hop 头不转发），后续登录态统一在代理层注入；catch-all 覆盖 /api/mall/health 故删除旧 health/route.ts；QueryClient 默认 options 在 Provider 集中配置
-  - 验证：`pnpm lint` / `pnpm build` 通过（路由表含 ƒ /api/mall/[...path]）；curl 经 BFF 完成 GET health、GET categories（分页+模糊参数透传）、POST 新增/校验失败 400 透传、DELETE 删除；首页 CategoryList 客户端组件经 TanStack Query → BFF 拉取类目列表渲染
-- [ ] **P1.8 Next 登录 + 管理后台布局**：Auth.js v5 简单登录（Credentials Provider mock）、侧边栏布局骨架
-- [ ] **P1.9 Next 商品/类目管理页**：列表 + 新增/编辑（react-hook-form + zod）
-- [ ] **P1.10 Next 订单/售后/客户页**：列表 + 详情查看
-- [ ] **P1.11 联调冒烟 + 进度更新**：Swagger 全接口可用、BFF 调通、管理后台 CRUD 跑通；更新本表
+- [x] **P1.7 数据请求层 + 联调验证**：axios 实例 + 逐接口 API 层、TanStack Query 基础封装
+  - 文件结构：`src/api/http.ts`（axios 实例工厂：mallHttp=/api/mall、aiHttp=/api/ai；请求拦截注入 JWT、响应拦截解包 Result/统一错误文案）、`src/api/mall/`（types + category/product/customer/order/after-sale/health 逐接口函数 + barrel index）、`src/api/ai/`（health）
+  - 设计决策：选型 axios 而非 fetch——P1.8 JWT 登录需要拦截器注入 token 与统一 401 处理；Result 解包放响应拦截器，调用方拿到纯净 data；商城流量由 Vite proxy / nginx 直连 Java，原 Next BFF /api/mall/\* 代理删除；QueryClient 默认 options 在根路由组件集中配置
+  - **修复雪花 ID 精度丢失**：Java Long ID（如 2097601223567945729）超 JS Number.MAX_SAFE_INTEGER，JSON.parse 会丢精度。新增 `JacksonConfig` 全局把包装类型 Long 序列化为字符串（基本类型 long 不受影响，PageResult.total 等仍是数字）；前端类型 id 一律 string
+  - 验证：`pnpm --filter web build` 与 `tsc --noEmit` 通过；curl 经 Vite proxy 完成 GET /api/mall/health、GET /api/mall/categories；/api/ai/health 经 Vite proxy 命中 AI 服务；新实例 curl 验证 id 输出为字符串、total 为数字
+- [ ] **P1.8 前端登录 + 管理后台布局**：简单登录（Java 侧 JWT）、TanStack Router 侧边栏布局骨架
+- [ ] **P1.9 商品/类目管理页**：列表 + 新增/编辑（react-hook-form + zod）
+- [ ] **P1.10 订单/售后/客户页**：列表 + 详情查看
+- [ ] **P1.11 联调冒烟 + 进度更新**：Swagger 全接口可用、前端直连 Java 调通、管理后台 CRUD 跑通；更新本表
 
 ## 环境要求（新机器快速预览）
 
@@ -82,8 +84,10 @@
 ## 常用命令
 
 ```bash
-docker compose up -d          # 启动数据库
-pnpm dev                      # 同时拉起 Next(3000) 与 Spring Boot(8080)
-pnpm --filter web build       # 构建前端
+docker compose up -d postgres   # 仅启动数据库（本地开发）
+docker compose up -d --build    # 全栈容器化：postgres + mall-api + ai-service + web(nginx :80)
+pnpm dev                        # 同时拉起 Vite(5173)、Next AI(3001)、Spring Boot(8080)
+pnpm --filter web build         # 构建前端（Vite）
+pnpm --filter ai build          # 构建 AI 服务（Next standalone）
 cd services/mall-api && ./mvnw spring-boot:run   # 单独起 Java
 ```

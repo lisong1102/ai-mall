@@ -1,1 +1,129 @@
 @import "tailwindcss";
+
+/* ============================================================
+   白茶清欢 · 设计 Token（唯一来源）
+   业务组件与 antd 主题均引用此处变量，禁止组件内硬编码色值
+   ============================================================ */
+:root {
+  /* 背景 */
+  --color-bg: #f3f7f4;            /* 雾白底 */
+  --color-paper: #ffffff;         /* 卡片/纸面 */
+
+  /* 文字 — 松墨色系 */
+  --color-ink: #1c3a31;           /* 主文字 */
+  --color-ink-2: #56706a;         /* 次文字 */
+  --color-ink-3: #93a79f;         /* 辅助文字 */
+
+  /* 边框 */
+  --color-line: #e5efe9;
+  --color-line-soft: #eef4f0;
+
+  /* 主色 — 茶青绿 */
+  --color-jade: #2ea776;
+  --color-jade-deep: #1e8a5e;
+  --color-jade-soft: #e2f5eb;
+  --color-mint: #dcf3e6;
+
+  /* AI 点缀色 — 杏色 */
+  --color-apricot: #ed9760;
+  --color-apricot-deep: #d97b41;
+  --color-apricot-soft: #fdeee1;
+
+  /* 辅助色 */
+  --color-sky: #dfeef2;
+  --color-sky-deep: #4d93a3;
+  --color-gold: #e3b044;
+  --color-rose: #e0807b;
+  --color-rose-soft: #fbe9e7;
+
+  /* 圆角 */
+  --radius-lg: 20px;
+  --radius-md: 14px;
+  --radius-sm: 10px;
+
+  /* 阴影 */
+  --shadow-sm: 0 1px 2px rgba(28, 58, 49, 0.05);
+  --shadow-card: 0 1px 2px rgba(28, 58, 49, 0.04),
+    0 14px 34px -16px rgba(28, 58, 49, 0.16);
+  --shadow-pop: 0 8px 28px -8px rgba(28, 58, 49, 0.22);
+  --shadow-apricot: 0 6px 14px -4px rgba(237, 151, 96, 0.55);
+  --shadow-jade: 0 6px 14px -4px rgba(46, 167, 118, 0.55);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", sans-serif;
+  color: var(--color-ink);
+  background: var(--color-bg);
+  font-size: 14px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+/* 滚动条 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: #d3e2da;
+  border-radius: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* 背景柔光 */
+.ambient-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.ambient-bg i {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(70px);
+  opacity: 0.55;
+}
+.ambient-bg i:nth-child(1) {
+  width: 520px;
+  height: 520px;
+  left: -160px;
+  top: -180px;
+  background: #d6f0e0;
+}
+.ambient-bg i:nth-child(2) {
+  width: 460px;
+  height: 460px;
+  right: 320px;
+  top: -200px;
+  background: #d9ecf1;
+  opacity: 0.45;
+}
+.ambient-bg i:nth-child(3) {
+  width: 420px;
+  height: 420px;
+  right: -120px;
+  bottom: -160px;
+  background: #fbe7d5;
+  opacity: 0.5;
+}
+
+/* ============ 通用工具类 ============ */
+.num {
+  font-variant-numeric: tabular-nums;
+}

@@ -1,13 +1,15 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createRootRoute, Outlet } from "@tanstack/react-router";
+import { ConfigProvider, App as AntdApp } from "antd";
+import zhCN from "antd/locale/zh_CN";
 import { useState } from "react";
+import { themeConfig } from "@/theme";
 
 export const Route = createRootRoute({
   component: RootComponent,
 });
 
 function RootComponent() {
-  // QueryClient 用 useState 保证每个浏览器会话只创建一次
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -18,8 +20,17 @@ function RootComponent() {
   );
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <Outlet />
-    </QueryClientProvider>
+    <ConfigProvider theme={themeConfig} locale={zhCN}>
+      <AntdApp>
+        <QueryClientProvider client={queryClient}>
+          <div className="ambient-bg">
+            <i></i>
+            <i></i>
+            <i></i>
+          </div>
+          <Outlet />
+        </QueryClientProvider>
+      </AntdApp>
+    </ConfigProvider>
   );
 }

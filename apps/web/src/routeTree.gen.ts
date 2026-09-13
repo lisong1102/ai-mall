@@ -10,33 +10,117 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AdminRouteImport } from './routes/_admin'
+import { Route as AdminDashboardRouteImport } from './routes/_admin/dashboard'
+import { Route as AdminOrdersRouteImport } from './routes/_admin/orders'
+import { Route as AdminProductsRouteImport } from './routes/_admin/products'
+import { Route as AdminAiChatRouteImport } from './routes/_admin/ai/chat'
+import { Route as AdminAiKnowledgeRouteImport } from './routes/_admin/ai/knowledge'
+import { Route as AdminAiToolsRouteImport } from './routes/_admin/ai/tools'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/_admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminDashboardRoute = AdminDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminOrdersRoute = AdminOrdersRouteImport.update({
+  id: '/orders',
+  path: '/orders',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminProductsRoute = AdminProductsRouteImport.update({
+  id: '/products',
+  path: '/products',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminAiChatRoute = AdminAiChatRouteImport.update({
+  id: '/ai/chat',
+  path: '/ai/chat',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminAiKnowledgeRoute = AdminAiKnowledgeRouteImport.update({
+  id: '/ai/knowledge',
+  path: '/ai/knowledge',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminAiToolsRoute = AdminAiToolsRouteImport.update({
+  id: '/ai/tools',
+  path: '/ai/tools',
+  getParentRoute: () => AdminRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/dashboard': typeof AdminDashboardRoute
+  '/orders': typeof AdminOrdersRoute
+  '/products': typeof AdminProductsRoute
+  '/ai/chat': typeof AdminAiChatRoute
+  '/ai/knowledge': typeof AdminAiKnowledgeRoute
+  '/ai/tools': typeof AdminAiToolsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/dashboard': typeof AdminDashboardRoute
+  '/orders': typeof AdminOrdersRoute
+  '/products': typeof AdminProductsRoute
+  '/ai/chat': typeof AdminAiChatRoute
+  '/ai/knowledge': typeof AdminAiKnowledgeRoute
+  '/ai/tools': typeof AdminAiToolsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_admin': typeof AdminRouteWithChildren
+  '/_admin/dashboard': typeof AdminDashboardRoute
+  '/_admin/orders': typeof AdminOrdersRoute
+  '/_admin/products': typeof AdminProductsRoute
+  '/_admin/ai/chat': typeof AdminAiChatRoute
+  '/_admin/ai/knowledge': typeof AdminAiKnowledgeRoute
+  '/_admin/ai/tools': typeof AdminAiToolsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/dashboard'
+    | '/orders'
+    | '/products'
+    | '/ai/chat'
+    | '/ai/knowledge'
+    | '/ai/tools'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/dashboard'
+    | '/orders'
+    | '/products'
+    | '/ai/chat'
+    | '/ai/knowledge'
+    | '/ai/tools'
+  id:
+    | '__root__'
+    | '/'
+    | '/_admin'
+    | '/_admin/dashboard'
+    | '/_admin/orders'
+    | '/_admin/products'
+    | '/_admin/ai/chat'
+    | '/_admin/ai/knowledge'
+    | '/_admin/ai/tools'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminRoute: typeof AdminRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +132,81 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_admin': {
+      id: '/_admin'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_admin/dashboard': {
+      id: '/_admin/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof AdminDashboardRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/_admin/orders': {
+      id: '/_admin/orders'
+      path: '/orders'
+      fullPath: '/orders'
+      preLoaderRoute: typeof AdminOrdersRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/_admin/products': {
+      id: '/_admin/products'
+      path: '/products'
+      fullPath: '/products'
+      preLoaderRoute: typeof AdminProductsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/_admin/ai/chat': {
+      id: '/_admin/ai/chat'
+      path: '/ai/chat'
+      fullPath: '/ai/chat'
+      preLoaderRoute: typeof AdminAiChatRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/_admin/ai/knowledge': {
+      id: '/_admin/ai/knowledge'
+      path: '/ai/knowledge'
+      fullPath: '/ai/knowledge'
+      preLoaderRoute: typeof AdminAiKnowledgeRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/_admin/ai/tools': {
+      id: '/_admin/ai/tools'
+      path: '/ai/tools'
+      fullPath: '/ai/tools'
+      preLoaderRoute: typeof AdminAiToolsRouteImport
+      parentRoute: typeof AdminRoute
+    }
   }
 }
 
+interface AdminRouteChildren {
+  AdminDashboardRoute: typeof AdminDashboardRoute
+  AdminOrdersRoute: typeof AdminOrdersRoute
+  AdminProductsRoute: typeof AdminProductsRoute
+  AdminAiChatRoute: typeof AdminAiChatRoute
+  AdminAiKnowledgeRoute: typeof AdminAiKnowledgeRoute
+  AdminAiToolsRoute: typeof AdminAiToolsRoute
+}
+
+const AdminRouteChildren: AdminRouteChildren = {
+  AdminDashboardRoute: AdminDashboardRoute,
+  AdminOrdersRoute: AdminOrdersRoute,
+  AdminProductsRoute: AdminProductsRoute,
+  AdminAiChatRoute: AdminAiChatRoute,
+  AdminAiKnowledgeRoute: AdminAiKnowledgeRoute,
+  AdminAiToolsRoute: AdminAiToolsRoute,
+}
+
+const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRoute: AdminRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

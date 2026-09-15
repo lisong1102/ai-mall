@@ -4,6 +4,7 @@ import { ConfigProvider, App as AntdApp } from "antd";
 import zhCN from "antd/locale/zh_CN";
 import { useState } from "react";
 import { themeConfig } from "@/theme";
+import { AuthProvider } from "@/lib/auth";
 
 export const Route = createRootRoute({
   component: RootComponent,
@@ -23,12 +24,14 @@ function RootComponent() {
     <ConfigProvider theme={themeConfig} locale={zhCN}>
       <AntdApp>
         <QueryClientProvider client={queryClient}>
-          <div className="ambient-bg">
-            <i></i>
-            <i></i>
-            <i></i>
-          </div>
-          <Outlet />
+          <AuthProvider>
+            <div className="ambient-bg">
+              <i></i>
+              <i></i>
+              <i></i>
+            </div>
+            <Outlet />
+          </AuthProvider>
         </QueryClientProvider>
       </AntdApp>
     </ConfigProvider>

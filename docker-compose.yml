@@ -27,6 +27,9 @@ services:
       POSTGRES_DB: ai_mall
       POSTGRES_USER: mall
       POSTGRES_PASSWORD: mall
+      # 生产部署请在 .env 中提供 JWT_SECRET（${VAR:-默认值} 兜底仅用于本机演示）
+      JWT_SECRET: ${JWT_SECRET:-ai-mall-prod-please-change-this-jwt-secret-0123456789}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
     depends_on:
       postgres:
         condition: service_healthy

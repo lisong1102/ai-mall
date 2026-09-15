@@ -147,3 +147,24 @@ export interface AfterSaleSaveReq {
   reason?: string;
   refundAmount?: number;
 }
+
+// ---------- 认证 ----------
+export interface AdminUser {
+  /** 雪花 ID，字符串传输 */
+  id: string;
+  username: string;
+  nickname: string;
+}
+
+export interface LoginReq {
+  username: string;
+  password: string;
+}
+
+export interface LoginResp {
+  token: string;
+  tokenType: string;
+  /** 有效期（秒） */
+  expiresIn: number;
+  user: AdminUser;
+}

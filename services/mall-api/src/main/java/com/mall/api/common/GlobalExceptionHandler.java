@@ -34,6 +34,13 @@ public class GlobalExceptionHandler {
         return Result.error(400, e.getMessage());
     }
 
+    /** 未认证（缺失/非法 JWT），返回 401 */
+    @ResponseStatus(HttpStatus.UNAUTHORIZED)
+    @ExceptionHandler(UnauthorizedException.class)
+    public Result<Void> handleUnauthorized(UnauthorizedException e) {
+        return Result.error(401, e.getMessage());
+    }
+
     /** 兜底 */
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     @ExceptionHandler(Exception.class)

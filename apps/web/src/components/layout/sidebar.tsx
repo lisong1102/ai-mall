@@ -13,37 +13,70 @@ import {
 } from "@ant-design/icons";
 import { useNavigate, useLocation } from "@tanstack/react-router";
 import type { MenuProps } from "antd";
+import { useAuth } from "@/lib/auth";
 
 const { Sider } = Layout;
 
 type MenuItem = Required<MenuProps>["items"][number];
 
 const menuItems: MenuItem[] = [
-  { type: "group", label: "经营概况", key: "g1", children: [
-    { key: "/dashboard", icon: <DashboardOutlined />, label: "仪表盘" },
-  ]},
-  { type: "group", label: "商品中心", key: "g2", children: [
-    { key: "/products", icon: <ShoppingOutlined />, label: "商品管理" },
-    { key: "/categories", icon: <AppstoreOutlined />, label: "类目管理" },
-  ]},
-  { type: "group", label: "交易中心", key: "g3", children: [
-    { key: "/orders", icon: <FileTextOutlined />, label: "订单管理" },
-    { key: "/after-sale", icon: <RetweetOutlined />, label: "售后管理" },
-  ]},
-  { type: "group", label: "客户中心", key: "g4", children: [
-    { key: "/customers", icon: <UserOutlined />, label: "客户管理" },
-  ]},
-  { type: "group", label: "AI 工作台", key: "g5", children: [
-    { key: "/ai/chat", icon: <RobotOutlined />, label: "AI 对话" },
-    { key: "/ai/knowledge", icon: <BookOutlined />, label: "知识库" },
-    { key: "/ai/tools", icon: <ToolOutlined />, label: "智能工具" },
-  ]},
+  {
+    type: "group",
+    label: "经营概况",
+    key: "g1",
+    children: [
+      { key: "/dashboard", icon: <DashboardOutlined />, label: "仪表盘" },
+    ],
+  },
+  {
+    type: "group",
+    label: "商品中心",
+    key: "g2",
+    children: [
+      { key: "/products", icon: <ShoppingOutlined />, label: "商品管理" },
+      { key: "/categories", icon: <AppstoreOutlined />, label: "类目管理" },
+    ],
+  },
+  {
+    type: "group",
+    label: "交易中心",
+    key: "g3",
+    children: [
+      { key: "/orders", icon: <FileTextOutlined />, label: "订单管理" },
+      { key: "/after-sale", icon: <RetweetOutlined />, label: "售后管理" },
+    ],
+  },
+  {
+    type: "group",
+    label: "客户中心",
+    key: "g4",
+    children: [
+      { key: "/customers", icon: <UserOutlined />, label: "客户管理" },
+    ],
+  },
+  {
+    type: "group",
+    label: "AI 工作台",
+    key: "g5",
+    children: [
+      { key: "/ai/chat", icon: <RobotOutlined />, label: "AI 对话" },
+      { key: "/ai/knowledge", icon: <BookOutlined />, label: "知识库" },
+      { key: "/ai/tools", icon: <ToolOutlined />, label: "智能工具" },
+    ],
+  },
 ];
 
 export default function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
-  const selectedKey = location.pathname === "/" ? "/dashboard" : location.pathname;
+  const { user, logout } = useAuth();
+  const selectedKey =
+    location.pathname === "/" ? "/dashboard" : location.pathname;
+
+  const handleLogout = () => {
+    logout();
+    navigate({ to: "/login", replace: true });
+  };
 
   return (
     <Sider
@@ -61,7 +94,14 @@ export default function Sidebar() {
       }}
     >
       {/* Brand */}
-      <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "6px 8px 18px" }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 11,
+          padding: "6px 8px 18px",
+        }}
+      >
         <span
           style={{
             width: 38,
@@ -78,8 +118,18 @@ export default function Sidebar() {
           <ShoppingOutlined style={{ fontSize: 20 }} />
         </span>
         <div>
-          <div style={{ fontSize: 15.5, fontWeight: 700, letterSpacing: 0.5 }}>AI Mall 后台</div>
-          <div style={{ fontSize: 11.5, color: "var(--color-ink-3)", letterSpacing: 2 }}>FRESH CONSOLE</div>
+          <div style={{ fontSize: 15.5, fontWeight: 700, letterSpacing: 0.5 }}>
+            AI Mall 后台
+          </div>
+          <div
+            style={{
+              fontSize: 11.5,
+              color: "var(--color-ink-3)",
+              letterSpacing: 2,
+            }}
+          >
+            FRESH CONSOLE
+          </div>
         </div>
       </div>
 
@@ -115,14 +165,27 @@ export default function Sidebar() {
             fontWeight: 600,
           }}
         >
-          管
+          {(user?.nickname ?? "管").charAt(0)}
         </Avatar>
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 600 }}>管理员</div>
-          <div style={{ fontSize: 11, color: "var(--color-ink-3)" }}>admin</div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 600 }}>
+            {user?.nickname ?? "管理员"}
+          </div>
+          <div
+            style={{
+              fontSize: 11,
+              color: "var(--color-ink-3)",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {user?.username ?? "admin"}
+          </div>
         </div>
         <button
           title="退出登录"
+          onClick={handleLogout}
           style={{
             marginLeft: "auto",
             color: "var(--color-ink-3)",

@@ -69,7 +69,12 @@
   - 设计决策：选型 axios 而非 fetch——P1.8 JWT 登录需要拦截器注入 token 与统一 401 处理；Result 解包放响应拦截器，调用方拿到纯净 data；商城流量由 Vite proxy / nginx 直连 Java，原 Next BFF /api/mall/\* 代理删除；QueryClient 默认 options 在根路由组件集中配置
   - **修复雪花 ID 精度丢失**：Java Long ID（如 2097601223567945729）超 JS Number.MAX_SAFE_INTEGER，JSON.parse 会丢精度。新增 `JacksonConfig` 全局把包装类型 Long 序列化为字符串（基本类型 long 不受影响，PageResult.total 等仍是数字）；前端类型 id 一律 string
   - 验证：`pnpm --filter web build` 与 `tsc --noEmit` 通过；curl 经 Vite proxy 完成 GET /api/mall/health、GET /api/mall/categories；/api/ai/health 经 Vite proxy 命中 AI 服务；新实例 curl 验证 id 输出为字符串、total 为数字
-- [ ] **P1.8 前端登录 + 管理后台布局**：简单登录（Java 侧 JWT）、TanStack Router 侧边栏布局骨架
+- [x] **P1.8 前端登录 + 管理后台布局**：简单登录（Java 侧 JWT）、TanStack Router 侧边栏布局骨架
+  - Java 新增 11 个文件：`V3__admin_user.sql`（管理员表，TIMESTAMP 沿用 V2 约定）、`entity/AdminUser`、`mapper/AdminUserMapper`、`security/JwtUtil`（jjwt 0.12.6 / HS384 由密钥长度决定，sub=userId、username claim、24h 过期）、`security/JwtAuthInterceptor`、`config/WebMvcConfig`（拦截 `/api/**`，放行登录/健康检查/Swagger）、`common/UnauthorizedException`（全局处理器转 401）、`controller/AuthController` + `dto/{LoginReq,LoginResp}`、`service/AuthService(Impl)`、`config/DataInitializer`（首启播种 admin/admin123）
+  - 依赖决策：只引 `spring-security-crypto`（BCryptPasswordEncoder）而非整套 Spring Security——学习项目无需过滤器链/Session/CSRF，鉴权逻辑用一个 HandlerInterceptor 透明可控；密码 BCrypt 哈希，用户不存在与密码错误返回相同文案防账号枚举
+  - 前端新增 4 个文件：`routes/login.tsx`（白茶清欢玻璃卡片登录页，antd Form，预填默认账号提示）、`lib/auth.tsx`（AuthProvider + useAuth：token 存 localStorage、user 在内存、挂载时 /auth/me 恢复登录态）、`lib/auth-token.ts`（token 读写单一入口）、`api/mall/auth.ts`（login/getMe）；改动 4 个文件：`_admin.tsx`（beforeLoad 无 token 重定向 /login 带 redirect 参数 + initializing 期全屏 Spin）、`http.ts`（token 注入改走 auth-token，401 清 token 并整页跳登录页）、`__root.tsx`（挂 AuthProvider）、`sidebar.tsx`（底部用户区显示真实昵称/账号、退出按钮接线 logout → /login）
+  - 设计决策：路由守卫分两层——beforeLoad 在 React 之外只能同步查 localStorage token（挡未登录），token 有效性由挂载时 /auth/me 兜底（挡过期/伪造，401 拦截器统一踢回）；回跳地址经 resolveRedirect 白名单校验（仅站内 "/" 开头、禁 // 协议相对 URL、禁 /login 自身）防开放重定向
+  - 验证：`./mvnw compile` 通过，Flyway 自动迁移 V3 + 播种日志可见；curl 8 场景全过（免鉴权 health/swagger、无 token 401、错误密码 400、空入参校验 400、正确登录拿 token、/auth/me、带 token 分页/新增类目、伪造 token 401）；`pnpm typecheck` 与 `pnpm build` 通过（login 独立 chunk）；Vite proxy `/api/mall/auth/*` 联调通过；浏览器 8 项 E2E 全过（未登录跳转、错误提示、登录进 dashboard、JWT 落库、刷新保活、退出清 token、console 无报错）
 - [ ] **P1.9 商品/类目管理页**：列表 + 新增/编辑（react-hook-form + zod）
 - [ ] **P1.10 订单/售后/客户页**：列表 + 详情查看
 - [ ] **P1.11 联调冒烟 + 进度更新**：Swagger 全接口可用、前端直连 Java 调通、管理后台 CRUD 跑通；更新本表

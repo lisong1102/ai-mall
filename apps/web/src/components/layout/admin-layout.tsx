@@ -1,7 +1,7 @@
 import { Outlet, useLocation } from "@tanstack/react-router";
 import Sidebar from "./sidebar";
 import Topbar from "./topbar";
-import AIAssistant from "./ai-assistant";
+import AIAssistant from "./ai-assistant/index";
 
 const titleMap: Record<string, string> = {
   "/dashboard": "经营概况",

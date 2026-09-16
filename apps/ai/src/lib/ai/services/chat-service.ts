@@ -1,4 +1,4 @@
-import { normalAgent } from "@/agents/normal";
+import { normalAgent } from "@/agents/langchain/normal";
 import { deepseekModel } from "@/model";
 import { z } from "zod";
 

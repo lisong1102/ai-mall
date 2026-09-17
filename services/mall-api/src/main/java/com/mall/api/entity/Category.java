@@ -31,6 +31,10 @@ public class Category {
     @Schema(description = "父类目ID，0 表示根类目", example = "0")
     private Long parentId;
 
+    /** 类目层级，1 表示根类目，2 表示子类目 */
+    @Schema(description = "类目层级，1 表示根类目，2 表示子类目", example = "1")
+    private Integer level;
+
     /** 排序，数值小在前 */
     @Schema(description = "排序值，数值小在前", example = "0")
     private Integer sort;

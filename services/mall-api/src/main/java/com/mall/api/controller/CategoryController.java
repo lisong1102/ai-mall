@@ -4,6 +4,7 @@ import com.mall.api.common.PageQuery;
 import com.mall.api.common.PageResult;
 import com.mall.api.common.Result;
 import com.mall.api.controller.dto.CategorySaveReq;
+import com.mall.api.controller.dto.CategoryTreeNode;
 import com.mall.api.entity.Category;
 import com.mall.api.service.CategoryService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -12,6 +13,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 /**
  * 类目管理 RESTful 接口。
@@ -28,14 +31,14 @@ public class CategoryController {
     @GetMapping
     @Operation(summary = "分页查询类目")
     public Result<PageResult<Category>> page(@ParameterObject PageQuery query,
-                                             @RequestParam(required = false) String name) {
+            @RequestParam(required = false) String name) {
         return Result.ok(categoryService.page(query.getPage(), query.getSize(), name));
     }
 
-    @GetMapping("/{id}")
-    @Operation(summary = "查询类目详情")
-    public Result<Category> get(@PathVariable Long id) {
-        return Result.ok(categoryService.getById(id));
+    @GetMapping("/tree")
+    @Operation(summary = "查询类目树")
+    public Result<List<CategoryTreeNode>> tree() {
+        return Result.ok(categoryService.tree());
     }
 
     @PostMapping
@@ -45,7 +48,7 @@ public class CategoryController {
         category.setName(req.getName());
         category.setParentId(req.getParentId() != null ? req.getParentId() : 0L);
         category.setSort(req.getSort() != null ? req.getSort() : 0);
-        categoryService.save(category);
+        categoryService.createCategory(category);
         return Result.ok(category.getId());
     }
 
@@ -57,6 +60,7 @@ public class CategoryController {
         category.setName(req.getName());
         category.setParentId(req.getParentId() != null ? req.getParentId() : 0L);
         category.setSort(req.getSort() != null ? req.getSort() : 0);
+        // code 一经创建不可修改，update 忽略 req.code
         categoryService.updateById(category);
         return Result.ok(null);
     }

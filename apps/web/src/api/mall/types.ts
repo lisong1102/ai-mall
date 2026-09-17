@@ -21,7 +21,9 @@ export interface PageResult<T> {
 // ---------- 类目 ----------
 export interface Category {
   id: string;
+  /** 类目业务编码，全局唯一；不传由后端自动生成 */
   name: string;
+  level: number;
   parentId: string;
   sort: number;
   createdAt: string;
@@ -29,9 +31,17 @@ export interface Category {
 }
 
 export interface CategorySaveReq {
+  /** 类目业务编码（可选，不传则后端自动生成）；仅大写字母与数字，长度 1-32 */
   name: string;
   parentId?: string;
   sort?: number;
+}
+
+export interface CategoryTreeNode {
+  id: string;
+  name: string;
+  parentId: string;
+  children?: CategoryTreeNode[];
 }
 
 // ---------- 商品 ----------

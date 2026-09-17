@@ -2,6 +2,7 @@ import { mallHttp } from "../http";
 import type {
   Category,
   CategorySaveReq,
+  CategoryTreeNode,
   PageParams,
   PageResult,
 } from "./types";
@@ -34,4 +35,10 @@ export async function updateCategory(id: string, req: CategorySaveReq) {
 /** 删除类目 */
 export async function deleteCategory(id: string) {
   await mallHttp.delete<void>(`/categories/${id}`);
+}
+
+/** 查询类目树（用于父类目选择） */
+export async function getCategoryTree() {
+  const res = await mallHttp.get<CategoryTreeNode[]>("/categories/tree");
+  return res.data;
 }

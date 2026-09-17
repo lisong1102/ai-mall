@@ -22,6 +22,7 @@ import java.time.LocalDateTime;
 @Schema(description = "售后单")
 public class AfterSale {
 
+
     /** 主键，雪花算法生成 */
     @Schema(description = "主键ID", example = "1890000000000000040")
     @TableId(type = IdType.ASSIGN_ID)

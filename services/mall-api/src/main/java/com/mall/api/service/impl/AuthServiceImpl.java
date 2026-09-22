@@ -6,6 +6,7 @@ import com.mall.api.entity.AdminUser;
 import com.mall.api.mapper.AdminUserMapper;
 import com.mall.api.security.JwtUtil;
 import com.mall.api.service.AuthService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -39,9 +40,15 @@ public class AuthServiceImpl implements AuthService {
                 new LoginResp.UserInfo(
                         String.valueOf(user.getId()),
                         user.getUsername(),
-                        user.getNickname()
-                )
-        );
+                        user.getNickname()));
+    }
+
+    @Override
+    public Boolean logout(HttpServletRequest request) {
+        // JWT 无状态，服务端不保存 token：
+        // 能走到这里说明 JwtAuthInterceptor 已校验通过（合法登录态），
+        // 退出由前端清除 localStorage 中的 token 实现，token 到期后自然失效。
+        return true;
     }
 
     @Override

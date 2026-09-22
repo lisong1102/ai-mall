@@ -9,7 +9,15 @@ import { useChatStream } from "@/hooks/use-chat-stream";
 
 export default function AIAssistant() {
   const [input, setInput] = useState("");
-  const { messages, loading, sendMessage } = useChatStream({
+  const {
+    messages,
+    loading,
+    conversationId,
+    sendMessage,
+    switchConversation,
+    newConversation,
+    deleteConversation,
+  } = useChatStream({
     initialMessages: [WELCOME_MESSAGE],
     userAvatar,
     aiAvatar,
@@ -29,7 +37,12 @@ export default function AIAssistant() {
         minHeight: 0,
       }}
     >
-      <AssistantHeader />
+      <AssistantHeader
+        activeId={conversationId}
+        onSelect={switchConversation}
+        deleteConversation={deleteConversation}
+        onNew={newConversation}
+      />
 
       {/* Messages */}
       <div style={{ flex: 1, overflowY: "auto", padding: 18 }}>

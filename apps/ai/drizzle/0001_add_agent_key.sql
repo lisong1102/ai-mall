@@ -1,0 +1,1 @@
+ALTER TABLE "ai"."conversations" ADD COLUMN "agent_key" text DEFAULT 'normal' NOT NULL;

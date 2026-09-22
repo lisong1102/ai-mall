@@ -35,6 +35,13 @@ public class AuthController {
         return Result.ok(authService.login(req.username(), req.password()));
     }
 
+    @PostMapping("/logout")
+    @Operation(summary = "退出登录")
+    public Result logout(HttpServletRequest request) {
+        Boolean success = authService.logout(request);
+        return Result.ok(success);
+    }
+
     @GetMapping("/me")
     @Operation(summary = "获取当前登录用户")
     public Result<LoginResp.UserInfo> me(HttpServletRequest request) {
@@ -46,7 +53,6 @@ public class AuthController {
         return Result.ok(new LoginResp.UserInfo(
                 String.valueOf(user.getId()),
                 user.getUsername(),
-                user.getNickname()
-        ));
+                user.getNickname()));
     }
 }

@@ -3,6 +3,11 @@ import type { ReactNode } from "react";
 import type { BubbleItemType } from "@ant-design/x";
 import { readSse } from "@/lib/sse";
 import type { ChatStreamEvent } from "@/api/ai/chat";
+import {
+  listConversationMessages,
+  deleteConversationById,
+  type ConversationMessage,
+} from "@/api/ai/conversation";
 import { getToken } from "@/lib/auth-token";
 
 interface UseChatStreamOptions {
@@ -28,9 +33,86 @@ export function useChatStream({
 }: UseChatStreamOptions) {
   const [messages, setMessages] = useState<BubbleItemType[]>(initialMessages);
   const [loading, setLoading] = useState(false);
+  // 当前会话 id（undefined = 未开始的新会话），头部下拉高亮依赖它
+  const [conversationId, setConversationId] = useState<string | undefined>(
+    undefined,
+  );
 
   const conversationIdRef = useRef<string | undefined>(undefined);
   const abortRef = useRef<AbortController | null>(null);
+
+  /** 中断正在进行的请求（切会话/新建时调用，省 token） */
+  const abortRequest = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+  }, []);
+
+  /** 后端历史消息 → Bubble 项，头像/位置与实时发送的消息保持一致 */
+  const toBubbleItems = useCallback(
+    (rows: ConversationMessage[]): BubbleItemType[] =>
+      rows.map((m) => ({
+        key: m.id,
+        role: m.role,
+        placement: m.role === "user" ? "end" : "start",
+        avatar: m.role === "user" ? userAvatar : aiAvatar,
+        content: m.content,
+      })),
+    [userAvatar, aiAvatar],
+  );
+
+  /** 开新会话：中断请求 + 清空历史 + 回到欢迎语 */
+  const newConversation = useCallback(() => {
+    abortRequest();
+    window.history.replaceState({}, "", window.location.pathname);
+    conversationIdRef.current = undefined;
+    setConversationId(undefined);
+    setMessages(initialMessages);
+    setLoading(false);
+  }, [abortRequest, initialMessages]);
+
+  /** 切换到指定会话：中断当前请求，拉该会话历史恢复气泡 */
+  const switchConversation = useCallback(
+    async (id: string) => {
+      if (id === conversationIdRef.current) return;
+      // 切换会话时，中断当前请求，省 token
+      abortRequest();
+      // 切换会话，替换或者新增浏览器的会话id
+      window.history.replaceState(
+        {},
+        "",
+        `${window.location.pathname}?conversationId=${id}`,
+      );
+
+      conversationIdRef.current = id;
+      setConversationId(id);
+      setLoading(true);
+      try {
+        const rows = await listConversationMessages(id);
+        setMessages(rows.length > 0 ? toBubbleItems(rows) : initialMessages);
+      } catch {
+        setMessages(initialMessages);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [abortRequest, toBubbleItems, initialMessages],
+  );
+
+  /** 删除历史会话 */
+  const deleteConversation = useCallback(
+    async (id: string) => {
+      if (id === conversationIdRef.current) {
+        newConversation();
+      }
+      abortRequest();
+      try {
+        await deleteConversationById(id);
+      } catch {
+        // 忽略错误
+      }
+    },
+    [switchConversation],
+  );
 
   const sendMessage = useCallback(
     async (text: string) => {
@@ -90,7 +172,10 @@ export function useChatStream({
         await readSse(res.body, (data) => {
           const ev = data as ChatStreamEvent;
           if (ev.error) throw new Error(ev.error);
-          if (ev.conversationId) conversationIdRef.current = ev.conversationId;
+          if (ev.conversationId) {
+            conversationIdRef.current = ev.conversationId;
+            setConversationId(ev.conversationId);
+          }
           if (!ev.delta) return;
 
           acc += ev.delta;
@@ -138,5 +223,13 @@ export function useChatStream({
     [loading, userAvatar, aiAvatar],
   );
 
-  return { messages, loading, sendMessage };
+  return {
+    messages,
+    loading,
+    conversationId,
+    sendMessage,
+    switchConversation,
+    newConversation,
+    deleteConversation,
+  };
 }

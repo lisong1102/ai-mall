@@ -16,6 +16,8 @@ const ai = pgSchema("ai");
  * - id: UUID 主键，前端用作 conversationId 透传
  * - user_id: 所属用户标识（来自 Java 端 JWT 解析后的用户 id）
  * - title: 会话标题，默认用首条用户消息截断
+ * - agent_key: 绑定的 agent 标识（见 apps/ai/src/agents/index.ts）
+ *   建会话时确定，之后不变；切 agent 等于开新会话，保证上下文人设一致
  */
 export const conversations = ai.table(
   "conversations",
@@ -23,6 +25,7 @@ export const conversations = ai.table(
     id: uuid("id").defaultRandom().primaryKey(),
     userId: text("user_id").notNull(),
     title: text("title").notNull().default("新对话"),
+    agentKey: text("agent_key").notNull().default("normal"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

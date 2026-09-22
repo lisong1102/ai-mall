@@ -7,10 +7,11 @@ export const deepseekModel = new ChatOpenAI({
     apiKey: process.env.Deepseek_API_KEY,
   },
   temperature: 0,
-  // 关闭 thinking 模式，否则 withStructuredOutput(functionCalling) 会报错：
+  // 关闭 thinking 模式，否则 agent 绑定工具（tool_choice）会报错：
   // "Thinking mode does not support this tool_choice"
+  // DeepSeek V4 新 API 用 thinking.type=disabled，旧的 enable_thinking 参数已失效
   modelKwargs: {
-    enable_thinking: false,
+    thinking: { type: "disabled" },
   },
 });
 

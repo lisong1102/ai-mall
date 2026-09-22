@@ -6,56 +6,32 @@ import {
   UserOutlined,
 } from "@ant-design/icons";
 import { useState } from "react";
-import { useAuth } from "@/lib/auth";
+import { register } from "@/api/mall/auth";
 import { getToken } from "@/lib/auth-token";
-import type { LoginReq } from "@/api/mall/types";
+import type { RegisterReq } from "@/api/mall/types";
 
-/** 回跳地址只接受站内路径，禁止 // 协议相对 URL 与登录页自身（防开放重定向/死循环） */
-function resolveRedirect(redirect?: string): string | null {
-  if (
-    redirect &&
-    redirect.startsWith("/") &&
-    !redirect.startsWith("//") &&
-    redirect !== "/login"
-  ) {
-    return redirect;
-  }
-  return null;
-}
-
-export const Route = createFileRoute("/login")({
-  validateSearch: (s: Record<string, unknown>): { redirect?: string } => ({
-    redirect: typeof s.redirect === "string" ? s.redirect : undefined,
-  }),
-  beforeLoad: ({ search }) => {
-    // 已登录再访问登录页：直接进后台（token 失效时 401 拦截器会清 token 再踢回来）
+export const Route = createFileRoute("/register")({
+  beforeLoad: () => {
     if (getToken()) {
-      throw redirect({ to: resolveRedirect(search.redirect) ?? "/dashboard" });
+      throw redirect({ to: "/dashboard" });
     }
   },
-  component: LoginPage,
+  component: RegisterPage,
 });
 
-function LoginPage() {
-  const { login } = useAuth();
+function RegisterPage() {
   const navigate = useNavigate();
   const { message } = App.useApp();
-  const search = Route.useSearch();
   const [loading, setLoading] = useState(false);
 
-  const onFinish = async (values: LoginReq) => {
+  const onFinish = async (values: RegisterReq & { confirm: string }) => {
     setLoading(true);
     try {
-      await login(values);
-      message.success("登录成功，欢迎回来");
-      // 动态站内地址，类型上收窄为已知路由字面量，运行时 TanStack 按真实 path 跳转
-      const target = resolveRedirect(search.redirect) ?? "/dashboard";
-      await navigate({
-        to: target as "/dashboard",
-        replace: true,
-      });
+      await register({ username: values.username, password: values.password });
+      message.success("注册成功，请登录");
+      await navigate({ to: "/login", replace: true });
     } catch (e) {
-      message.error(e instanceof Error ? e.message : "登录失败，请重试");
+      message.error(e instanceof Error ? e.message : "注册失败，请重试");
     } finally {
       setLoading(false);
     }
@@ -112,21 +88,23 @@ function LoginPage() {
               letterSpacing: 1,
             }}
           >
-            登录经营控制台，让茶茶帮你打理店铺
+            注册管理员账号
           </div>
         </div>
 
-        <Form<LoginReq>
+        <Form<RegisterReq & { confirm: string }>
           layout="vertical"
           onFinish={onFinish}
           autoComplete="off"
-          initialValues={{ username: "admin", password: "admin123" }}
           requiredMark={false}
         >
           <Form.Item
             name="username"
             label="用户名"
-            rules={[{ required: true, message: "请输入用户名" }]}
+            rules={[
+              { required: true, message: "请输入用户名" },
+              { min: 4, max: 16, message: "用户名长度 4-16 位" },
+            ]}
           >
             <Input
               size="large"
@@ -137,12 +115,37 @@ function LoginPage() {
           <Form.Item
             name="password"
             label="密码"
-            rules={[{ required: true, message: "请输入密码" }]}
+            rules={[
+              { required: true, message: "请输入密码" },
+              { min: 6, max: 20, message: "密码长度 6-20 位" },
+            ]}
           >
             <Input.Password
               size="large"
               prefix={<LockOutlined style={{ color: "var(--color-ink-3)" }} />}
               placeholder="请输入密码"
+            />
+          </Form.Item>
+          <Form.Item
+            name="confirm"
+            label="确认密码"
+            dependencies={["password"]}
+            rules={[
+              { required: true, message: "请确认密码" },
+              ({ getFieldValue }) => ({
+                validator(_, value) {
+                  if (!value || getFieldValue("password") === value) {
+                    return Promise.resolve();
+                  }
+                  return Promise.reject(new Error("两次输入的密码不一致"));
+                },
+              }),
+            ]}
+          >
+            <Input.Password
+              size="large"
+              prefix={<LockOutlined style={{ color: "var(--color-ink-3)" }} />}
+              placeholder="请再次输入密码"
             />
           </Form.Item>
           <Form.Item style={{ marginBottom: 14, marginTop: 6 }}>
@@ -154,32 +157,18 @@ function LoginPage() {
               loading={loading}
               style={{ height: 42, borderRadius: 12, fontWeight: 600 }}
             >
-              登 录
+              注 册
             </Button>
           </Form.Item>
         </Form>
 
-        <div
-          style={{
-            background: "var(--color-jade-soft)",
-            border: "1px dashed #b7e3cb",
-            borderRadius: "var(--radius-sm)",
-            padding: "9px 13px",
-            fontSize: 12,
-            color: "var(--color-jade-deep)",
-            textAlign: "center",
-          }}
-        >
-          学习环境默认账号：<b>admin</b> / <b>admin123</b>，登录后请及时修改
-        </div>
-
-        <div style={{ textAlign: "center", fontSize: 13, marginTop: 14 }}>
-          没有账号？{" "}
+        <div style={{ textAlign: "center", fontSize: 13 }}>
+          已有账号？{" "}
           <a
-            onClick={() => navigate({ to: "/register", replace: true })}
+            onClick={() => navigate({ to: "/login", replace: true })}
             style={{ cursor: "pointer" }}
           >
-            注册新账号
+            去登录
           </a>
         </div>
       </div>

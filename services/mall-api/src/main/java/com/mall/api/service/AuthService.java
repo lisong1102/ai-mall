@@ -13,6 +13,9 @@ public interface AuthService {
     /** 校验账号密码，成功返回 token + 用户信息 */
     LoginResp login(String username, String password);
 
+    /** 注册新用户 */
+    void register(String username, String password);
+
     /** 退出登录，清除 JWT 中的 userId */
     Boolean logout(HttpServletRequest request);
 

@@ -171,6 +171,11 @@ export interface LoginReq {
   password: string;
 }
 
+export interface RegisterReq {
+  username: string;
+  password: string;
+}
+
 export interface LoginResp {
   token: string;
   tokenType: string;

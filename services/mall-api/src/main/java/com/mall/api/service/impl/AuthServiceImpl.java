@@ -8,6 +8,7 @@ import com.mall.api.security.JwtUtil;
 import com.mall.api.service.AuthService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -58,5 +59,23 @@ public class AuthServiceImpl implements AuthService {
             throw new IllegalArgumentException("用户不存在");
         }
         return user;
+    }
+
+    @Override
+    public void register(String username, String password) {
+        if (adminUserMapper.selectOne(Wrappers.<AdminUser>lambdaQuery().eq(AdminUser::getUsername, username)) != null) {
+            throw new IllegalArgumentException("用户名已存在");
+        }
+
+        AdminUser user = new AdminUser();
+        user.setUsername(username);
+        user.setPassword(passwordEncoder.encode(password));
+        user.setNickname("管理员");
+        try {
+            adminUserMapper.insert(user);
+        } catch (DuplicateKeyException e) {
+            // 并发注册撞唯一约束，兜底转为业务异常
+            throw new IllegalArgumentException("用户名已存在");
+        }
     }
 }

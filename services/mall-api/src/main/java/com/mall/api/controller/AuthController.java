@@ -4,6 +4,7 @@ import com.mall.api.common.Result;
 import com.mall.api.common.UnauthorizedException;
 import com.mall.api.controller.dto.LoginReq;
 import com.mall.api.controller.dto.LoginResp;
+import com.mall.api.controller.dto.RegisterReq;
 import com.mall.api.entity.AdminUser;
 import com.mall.api.security.JwtAuthInterceptor;
 import com.mall.api.service.AuthService;
@@ -33,6 +34,13 @@ public class AuthController {
     @Operation(summary = "用户名密码登录，返回 JWT")
     public Result<LoginResp> login(@Valid @RequestBody LoginReq req) {
         return Result.ok(authService.login(req.username(), req.password()));
+    }
+
+    @PostMapping("/register")
+    @Operation(summary = "注册")
+    public Result register(@Valid @RequestBody RegisterReq req) {
+        authService.register(req.username(), req.password());
+        return Result.ok("注册成功");
     }
 
     @PostMapping("/logout")

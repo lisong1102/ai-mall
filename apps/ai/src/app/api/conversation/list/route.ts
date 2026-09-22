@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { jsonError, jsonOk } from "@/lib/ai/http";
+import { requireAuth } from "@/lib/ai/auth";
 import { listConversations } from "@/lib/ai/services/conversation-repo";
 
 export const runtime = "nodejs";
@@ -14,6 +15,9 @@ const QuerySchema = z.object({
  * 返回当前用户的会话（id / title / agentKey / 时间），按最近活跃倒序。
  */
 export async function GET(req: Request) {
+  const auth = await requireAuth(req);
+  if (!auth.ok) return auth.resp;
+
   const parsed = QuerySchema.safeParse(
     Object.fromEntries(new URL(req.url).searchParams),
   );
@@ -22,8 +26,7 @@ export async function GET(req: Request) {
   }
 
   try {
-    // TODO：userId 现在写死 "anonymous"，接入鉴权后从 JWT 解析
-    const list = await listConversations("anonymous", parsed.data.limit);
+    const list = await listConversations(auth.user.userId, parsed.data.limit);
     return jsonOk(list);
   } catch (e) {
     return jsonError(500, `服务异常：${(e as Error).message}`, 500);

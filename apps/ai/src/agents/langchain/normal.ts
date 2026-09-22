@@ -3,6 +3,7 @@ import { createAgent } from "langchain";
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { deepseekModel } from "@/model";
+import { checkpointer } from "@/lib/ai/checkpointer";
 
 // 工具 1：模拟搜索
 const webSearch = tool(
@@ -57,4 +58,5 @@ export const normalAgent = createAgent({
 - 用表格对比数据
 - 用 > 引用重要提示
 - 代码片段用 \`\`\` 包裹`,
+  checkpointer,
 });

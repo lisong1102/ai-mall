@@ -4,7 +4,6 @@ import {
   createConversation,
   getConversation,
   insertMessage,
-  listMessages,
   updateTitle,
 } from "./conversation-repo";
 import analysisChain from "@/agents/langchain/conversationAgent";
@@ -26,6 +25,12 @@ export const ChatRequestSchema = z.object({
 
 export type ChatRequest = z.infer<typeof ChatRequestSchema>;
 
+/** 调用方（route 层）解析 JWT 后传入的用户身份 */
+export interface ChatUser {
+  userId: string;
+  username: string;
+}
+
 export interface ChatResponse {
   conversationId: string;
   reply: string;
@@ -36,12 +41,6 @@ export interface ChatStreamEvent {
   conversationId: string;
   delta: string;
 }
-
-/**
- * 短期记忆窗口：取最近 N 条消息（user + assistant 各算一条）作历史喂给 agent。
- * 20 条约 10 轮对话，token 可控；超出后老消息直接丢弃，先不做总结压缩。
- */
-const HISTORY_LIMIT = 20;
 
 /** 首条 user 消息截 N 字作 conversation.title */
 const TITLE_LIMIT = 30;
@@ -58,14 +57,14 @@ const TITLE_LIMIT = 30;
  * 6. 正常结束：存 assistant message + 首条消息更新 title
  *    abort / 异常：不落库 assistant（前端已显示 ⚠️，不污染历史）
  *
- * TODO：userId 现在写死 "anonymous"，接入鉴权后从 JWT 解析。
+ * userId 由 route 层从 JWT 解析后传入。
  */
 export const chatService = {
-  async send(input: ChatRequest): Promise<ChatResponse> {
+  async send(input: ChatRequest, user: ChatUser): Promise<ChatResponse> {
     // 非流式：复用 stream 累加，避免编排逻辑重复
     let reply = "";
     let conversationId = "";
-    for await (const ev of this.stream(input)) {
+    for await (const ev of this.stream(input, user)) {
       conversationId = ev.conversationId;
       reply += ev.delta;
     }
@@ -74,6 +73,7 @@ export const chatService = {
 
   async *stream(
     input: ChatRequest,
+    user: ChatUser,
     signal?: AbortSignal,
   ): AsyncGenerator<ChatStreamEvent> {
     // ── 1. 解析 / 新建 conversation ───────────────────────
@@ -97,16 +97,13 @@ export const chatService = {
       // 会话标题：总结会话内容
       const result = await analysisChain.invoke({ input: input.message });
       title = result.reply;
-      const conv = await createConversation("anonymous", key, title);
+      const conv = await createConversation(user.userId, key, title);
       conversationId = conv.id;
       agentKey = key;
       isNew = true;
     }
 
     const agent = getAgent(agentKey);
-
-    // ── 2. 拉历史消息做短期记忆 ───────────────────────────
-    const history = await listMessages(conversationId, HISTORY_LIMIT);
 
     // ── 3. 存 user message（先落库，避免丢）───────────────
     await insertMessage(conversationId, "user", input.message);
@@ -116,12 +113,13 @@ export const chatService = {
     // signal 透传：前端断开时，LangChain 会中断到模型/工具的底层请求，不继续烧 token
     const stream = await agent.stream(
       {
-        messages: [
-          ...history.map((m) => ({ role: m.role, content: m.content })),
-          { role: "user", content: input.message },
-        ],
+        messages: [{ role: "user", content: input.message }],
       },
-      { streamMode: "messages", signal },
+      {
+        streamMode: "messages",
+        signal,
+        configurable: { thread_id: conversationId },
+      },
     );
 
     // ── 5. 累加 + yield delta ─────────────────────────────

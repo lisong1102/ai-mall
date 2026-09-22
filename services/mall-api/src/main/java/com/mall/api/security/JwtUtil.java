@@ -44,7 +44,7 @@ public class JwtUtil {
                 .claim("username", username)
                 .issuedAt(now)
                 .expiration(expiry)
-                .signWith(key)
+                .signWith(key, Jwts.SIG.HS256) // 不管key有多长，都用HS256算法
                 .compact();
     }
 

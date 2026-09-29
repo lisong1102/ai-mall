@@ -6,6 +6,8 @@
     列别名 customer_name 配合 application.yml 的 map-underscore-to-camel-case=true
     自动映射到 OrderVO.customerName。
     分页方法 selectOrderPage 的首参为 IPage，分页插件会自动追加 LIMIT/OFFSET 与 COUNT。
+    详情方法 selectOrderVOById 使用 orderDetailResultMap 的一对多 collection，
+    LEFT JOIN order_item 一次查出订单与全部明细，明细主键别名 item_id 避免与 o.id 冲突。
 -->
 <mapper namespace="com.mall.api.mapper.OrderMapper">
     <!-- 订单查询字段 -->
@@ -14,6 +16,28 @@
         o.total_amount, o.status, o.remark,
         o.created_at, o.updated_at
     </sql>
+
+    <!-- 订单 + 明细 一对多结果映射：一个 OrderVO 聚合其 List<OrderItemVO> -->
+    <resultMap id="orderDetailResultMap" type="com.mall.api.controller.dto.OrderVO">
+        <id property="id" column="id"/>
+        <result property="orderNo" column="order_no"/>
+        <result property="customerId" column="customer_id"/>
+        <result property="customerName" column="customer_name"/>
+        <result property="totalAmount" column="total_amount"/>
+        <result property="status" column="status"/>
+        <result property="remark" column="remark"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+        <collection property="items" ofType="com.mall.api.controller.dto.OrderItemVO">
+            <id property="id" column="item_id"/>
+            <result property="orderId" column="order_id"/>
+            <result property="productId" column="product_id"/>
+            <result property="productName" column="product_name"/>
+            <result property="price" column="price"/>
+            <result property="quantity" column="quantity"/>
+            <result property="subtotal" column="subtotal"/>
+        </collection>
+    </resultMap>
 
     <select id="selectOrderPage" resultType="com.mall.api.controller.dto.OrderVO">
         SELECT <include refid="orderColumns"/>
@@ -33,11 +57,15 @@
         ORDER BY o.created_at DESC, o.id DESC
     </select>
 
-    <select id="selectOrderVOById" resultType="com.mall.api.controller.dto.OrderVO">
-        SELECT <include refid="orderColumns"/>
+    <select id="selectOrderVOById" resultMap="orderDetailResultMap">
+        SELECT <include refid="orderColumns"/>,
+               i.id AS item_id, i.order_id, i.product_id, i.product_name,
+               i.price, i.quantity, i.subtotal
         FROM orders o
         LEFT JOIN customer c ON o.customer_id = c.id
+        LEFT JOIN order_item i ON i.order_id = o.id
         WHERE o.id = #{id}
+        ORDER BY i.id ASC
     </select>
 
 </mapper>

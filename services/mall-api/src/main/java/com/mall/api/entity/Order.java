@@ -55,4 +55,5 @@ public class Order {
     @Schema(description = "更新时间", example = "2026-09-10T12:00:00")
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updatedAt;
+
 }

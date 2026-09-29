@@ -1,6 +1,7 @@
 package com.mall.api.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.mall.api.common.PageResult;
@@ -21,7 +22,9 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.stream.Collectors;
 
 /**
  * Order Service 实现。
@@ -78,22 +81,25 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
     @Override
     public PageResult<OrderVO> page(long page, long size, String orderNo, Long customerId, Integer status) {
         Page<OrderVO> p = new Page<>(page, size);
-        return PageResult.of(baseMapper.selectOrderPage(p, orderNo, customerId, status));
+        // 1. 联表查询订单（带客户名）
+        IPage<OrderVO> pResult = baseMapper.selectOrderPage(p, orderNo, customerId, status);
+        List<Long> orderIds = pResult.getRecords().stream().map(OrderVO::getId).toList();
+        // 2.单独查询每个订单的明细
+        LambdaQueryWrapper<OrderItem> qw = new LambdaQueryWrapper<>();
+        qw.in(OrderItem::getOrderId, orderIds);
+        List<OrderItem> items = orderItemMapper.selectList(qw);
+        Map<Long, List<OrderItemVO>> itemMap = items.stream().map(this::toVO)
+                .collect(Collectors.groupingBy(OrderItemVO::getOrderId));
+        // 3. 填充明细
+        pResult.getRecords().forEach(vo -> vo.setItems(itemMap.getOrDefault(vo.getId(), List.of())));
+
+        return PageResult.of(pResult);
     }
 
     @Override
     public OrderVO getVOById(Long id) {
-        // 1. 联表查出订单 + 客户名
-        OrderVO vo = baseMapper.selectOrderVOById(id);
-        if (vo == null) {
-            return null;
-        }
-        // 2. 单独查询明细并填充（避免列表页拉取明细，详情才需要）
-        LambdaQueryWrapper<OrderItem> qw = new LambdaQueryWrapper<>();
-        qw.eq(OrderItem::getOrderId, id).orderByAsc(OrderItem::getId);
-        List<OrderItem> items = orderItemMapper.selectList(qw);
-        vo.setItems(items.stream().map(this::toVO).toList());
-        return vo;
+        // 一对多 resultMap + collection：一次联表查询带出订单、客户名与全部明细
+        return baseMapper.selectOrderVOById(id);
     }
 
     @Override

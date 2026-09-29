@@ -18,9 +18,11 @@ import { Route as AdminCategoriesRouteImport } from './routes/_admin/categories'
 import { Route as AdminDashboardRouteImport } from './routes/_admin/dashboard'
 import { Route as AdminOrdersRouteImport } from './routes/_admin/orders'
 import { Route as AdminProductsRouteImport } from './routes/_admin/products'
+import { Route as AdminShopRouteImport } from './routes/_admin/shop'
 import { Route as AdminAiChatRouteImport } from './routes/_admin/ai/chat'
 import { Route as AdminAiKnowledgeRouteImport } from './routes/_admin/ai/knowledge'
 import { Route as AdminAiToolsRouteImport } from './routes/_admin/ai/tools'
+import { Route as AdminShopIdRouteImport } from './routes/_admin/shop.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -66,6 +68,11 @@ const AdminProductsRoute = AdminProductsRouteImport.update({
   path: '/products',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminShopRoute = AdminShopRouteImport.update({
+  id: '/shop',
+  path: '/shop',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminAiChatRoute = AdminAiChatRouteImport.update({
   id: '/ai/chat',
   path: '/ai/chat',
@@ -81,6 +88,11 @@ const AdminAiToolsRoute = AdminAiToolsRouteImport.update({
   path: '/ai/tools',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminShopIdRoute = AdminShopIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => AdminShopRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -91,9 +103,11 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AdminDashboardRoute
   '/orders': typeof AdminOrdersRoute
   '/products': typeof AdminProductsRoute
+  '/shop': typeof AdminShopRouteWithChildren
   '/ai/chat': typeof AdminAiChatRoute
   '/ai/knowledge': typeof AdminAiKnowledgeRoute
   '/ai/tools': typeof AdminAiToolsRoute
+  '/shop/$id': typeof AdminShopIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -104,9 +118,11 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AdminDashboardRoute
   '/orders': typeof AdminOrdersRoute
   '/products': typeof AdminProductsRoute
+  '/shop': typeof AdminShopRouteWithChildren
   '/ai/chat': typeof AdminAiChatRoute
   '/ai/knowledge': typeof AdminAiKnowledgeRoute
   '/ai/tools': typeof AdminAiToolsRoute
+  '/shop/$id': typeof AdminShopIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -119,9 +135,11 @@ export interface FileRoutesById {
   '/_admin/dashboard': typeof AdminDashboardRoute
   '/_admin/orders': typeof AdminOrdersRoute
   '/_admin/products': typeof AdminProductsRoute
+  '/_admin/shop': typeof AdminShopRouteWithChildren
   '/_admin/ai/chat': typeof AdminAiChatRoute
   '/_admin/ai/knowledge': typeof AdminAiKnowledgeRoute
   '/_admin/ai/tools': typeof AdminAiToolsRoute
+  '/_admin/shop/$id': typeof AdminShopIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -134,9 +152,11 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/orders'
     | '/products'
+    | '/shop'
     | '/ai/chat'
     | '/ai/knowledge'
     | '/ai/tools'
+    | '/shop/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -147,9 +167,11 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/orders'
     | '/products'
+    | '/shop'
     | '/ai/chat'
     | '/ai/knowledge'
     | '/ai/tools'
+    | '/shop/$id'
   id:
     | '__root__'
     | '/'
@@ -161,9 +183,11 @@ export interface FileRouteTypes {
     | '/_admin/dashboard'
     | '/_admin/orders'
     | '/_admin/products'
+    | '/_admin/shop'
     | '/_admin/ai/chat'
     | '/_admin/ai/knowledge'
     | '/_admin/ai/tools'
+    | '/_admin/shop/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -238,6 +262,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminProductsRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/_admin/shop': {
+      id: '/_admin/shop'
+      path: '/shop'
+      fullPath: '/shop'
+      preLoaderRoute: typeof AdminShopRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/_admin/ai/chat': {
       id: '/_admin/ai/chat'
       path: '/ai/chat'
@@ -259,8 +290,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAiToolsRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/_admin/shop/$id': {
+      id: '/_admin/shop/$id'
+      path: '/$id'
+      fullPath: '/shop/$id'
+      preLoaderRoute: typeof AdminShopIdRouteImport
+      parentRoute: typeof AdminShopRoute
+    }
   }
 }
+
+interface AdminShopRouteChildren {
+  AdminShopIdRoute: typeof AdminShopIdRoute
+}
+
+const AdminShopRouteChildren: AdminShopRouteChildren = {
+  AdminShopIdRoute: AdminShopIdRoute,
+}
+
+const AdminShopRouteWithChildren = AdminShopRoute._addFileChildren(
+  AdminShopRouteChildren,
+)
 
 interface AdminRouteChildren {
   AdminAfterSaleRoute: typeof AdminAfterSaleRoute
@@ -268,6 +318,7 @@ interface AdminRouteChildren {
   AdminDashboardRoute: typeof AdminDashboardRoute
   AdminOrdersRoute: typeof AdminOrdersRoute
   AdminProductsRoute: typeof AdminProductsRoute
+  AdminShopRoute: typeof AdminShopRouteWithChildren
   AdminAiChatRoute: typeof AdminAiChatRoute
   AdminAiKnowledgeRoute: typeof AdminAiKnowledgeRoute
   AdminAiToolsRoute: typeof AdminAiToolsRoute
@@ -279,6 +330,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminDashboardRoute: AdminDashboardRoute,
   AdminOrdersRoute: AdminOrdersRoute,
   AdminProductsRoute: AdminProductsRoute,
+  AdminShopRoute: AdminShopRouteWithChildren,
   AdminAiChatRoute: AdminAiChatRoute,
   AdminAiKnowledgeRoute: AdminAiKnowledgeRoute,
   AdminAiToolsRoute: AdminAiToolsRoute,

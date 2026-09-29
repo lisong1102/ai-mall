@@ -1,11 +1,18 @@
 import { Input, Badge } from "antd";
-import { SearchOutlined, SyncOutlined, BellOutlined } from "@ant-design/icons";
+import {
+  SearchOutlined,
+  SyncOutlined,
+  BellOutlined,
+  ShoppingCartOutlined,
+} from "@ant-design/icons";
+import { useCart } from "@/lib/cart";
 
 interface TopbarProps {
   title: string;
 }
 
 export default function Topbar({ title }: TopbarProps) {
+  const { totalCount, setDrawerOpen } = useCart();
   return (
     <div
       style={{
@@ -26,12 +33,21 @@ export default function Topbar({ title }: TopbarProps) {
         >
           {title}
         </h1>
-        <div style={{ fontSize: 12, color: "var(--color-ink-3)", marginTop: 1 }}>
+        <div
+          style={{ fontSize: 12, color: "var(--color-ink-3)", marginTop: 1 }}
+        >
           2026 年 9 月 12 日 · 星期六 · 愿今天的订单像茶水一样源源不断
         </div>
       </div>
 
-      <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
+      <div
+        style={{
+          marginLeft: "auto",
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+        }}
+      >
         <Input
           prefix={<SearchOutlined style={{ color: "var(--color-ink-3)" }} />}
           placeholder="搜索订单号 / 商品 / 客户…"
@@ -55,6 +71,23 @@ export default function Topbar({ title }: TopbarProps) {
         >
           <SyncOutlined style={{ fontSize: 17 }} />
         </button>
+        <Badge count={totalCount} offset={[-2, 2]}>
+          <button
+            title="购物车"
+            onClick={() => setDrawerOpen(true)}
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: 12,
+              background: "rgba(255,255,255,0.8)",
+              border: "1px solid var(--color-line)",
+              color: "var(--color-ink-2)",
+              cursor: "pointer",
+            }}
+          >
+            <ShoppingCartOutlined style={{ fontSize: 17 }} />
+          </button>
+        </Badge>
         <Badge dot offset={[-2, 2]}>
           <button
             title="通知"

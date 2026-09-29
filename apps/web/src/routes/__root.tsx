@@ -5,6 +5,7 @@ import zhCN from "antd/locale/zh_CN";
 import { useState } from "react";
 import { themeConfig } from "@/theme";
 import { AuthProvider } from "@/lib/auth";
+import { CartProvider } from "@/lib/cart";
 
 export const Route = createRootRoute({
   component: RootComponent,
@@ -25,12 +26,14 @@ function RootComponent() {
       <AntdApp>
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
-            <div className="ambient-bg">
-              <i></i>
-              <i></i>
-              <i></i>
-            </div>
-            <Outlet />
+            <CartProvider>
+              <div className="ambient-bg">
+                <i></i>
+                <i></i>
+                <i></i>
+              </div>
+              <Outlet />
+            </CartProvider>
           </AuthProvider>
         </QueryClientProvider>
       </AntdApp>

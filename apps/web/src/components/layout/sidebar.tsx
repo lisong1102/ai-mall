@@ -2,6 +2,7 @@ import { Layout, Menu, Avatar } from "antd";
 import {
   DashboardOutlined,
   ShoppingOutlined,
+  ShopOutlined,
   AppstoreOutlined,
   FileTextOutlined,
   RetweetOutlined,
@@ -42,6 +43,7 @@ const menuItems: MenuItem[] = [
     label: "交易中心",
     key: "g3",
     children: [
+      { key: "/shop", icon: <ShopOutlined />, label: "商城" },
       { key: "/orders", icon: <FileTextOutlined />, label: "订单管理" },
       { key: "/after-sale", icon: <RetweetOutlined />, label: "售后管理" },
     ],

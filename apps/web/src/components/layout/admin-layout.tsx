@@ -2,11 +2,13 @@ import { Outlet, useLocation } from "@tanstack/react-router";
 import Sidebar from "./sidebar";
 import Topbar from "./topbar";
 import AIAssistant from "./ai-assistant/index";
+import CartDrawer from "@/components/shop/cart-drawer";
 
 const titleMap: Record<string, string> = {
   "/dashboard": "经营概况",
   "/products": "商品管理",
   "/categories": "类目管理",
+  "/shop": "商城 · 代客下单",
   "/orders": "订单管理",
   "/after-sale": "售后管理",
   "/customers": "客户管理",
@@ -18,7 +20,8 @@ const titleMap: Record<string, string> = {
 export default function AdminLayout() {
   const location = useLocation();
   const path = location.pathname === "/" ? "/dashboard" : location.pathname;
-  const title = titleMap[path] ?? "经营概况";
+  const title =
+    titleMap[path] ?? (path.startsWith("/shop/") ? "商品详情" : "经营概况");
 
   return (
     <div
@@ -46,6 +49,7 @@ export default function AdminLayout() {
         <div style={{ flex: 1, overflowY: "auto", padding: "0 6px 8px 2px" }}>
           <Outlet />
         </div>
+        <CartDrawer />
       </main>
 
       <AIAssistant />

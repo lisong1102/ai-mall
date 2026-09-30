@@ -346,3 +346,126 @@ Spring 官方自 4.x 起也明确推荐构造器注入；字段注入 `@Autowire
 - Controller、ServiceImpl 等需要注入 Service/Mapper 的类，统一用 **`@RequiredArgsConstructor` + `private final`**；
 - 不要写 `@Autowired` 字段注入，也不要手写构造器（交给 Lombok）；
 - ServiceImpl 继承 `ServiceImpl<Mapper, Entity>` 后，内置 `baseMapper` 字段可直接用，无需再自行注入 Mapper。
+
+# 7. MyBatis-Plus 的 Lambda 链式操作
+
+`ServiceImpl` 继承自 MyBatis-Plus，除内置 `baseMapper`、`save/updateById/getById` 等基础方法外，还提供一整套 **Lambda 链式 API**，用方法引用 `Entity::getXxx` 替代硬编码字段名，单表条件查询/更新/删除都能不开 Mapper 直接落库。
+
+## 7.1 链式方法族一览
+
+| 入口方法                               | 返回类型                      | 终结调用                                | 用途                     |
+| -------------------------------------- | ----------------------------- | --------------------------------------- | ------------------------ |
+| `this.lambdaQuery()`                   | `LambdaQueryChainWrapper<T>`  | `.list() / .one() / .count() / .page()` | 链式条件查询             |
+| `this.lambdaUpdate()`                  | `LambdaUpdateChainWrapper<T>` | `.update()`                             | 链式条件更新（部分字段） |
+| `this.lambdaUpdate().eq(...).remove()` | —                             | `.remove()`                             | 链式条件删除             |
+
+关键点：**前面的 `.eq/.set/.like` 只是在拼装 wrapper 条件，不会执行 SQL**；只有调用末尾的 `.update() / .list() / .remove()` 等终结方法才会真正提交 SQL。
+
+## 7.2 链式更新（本项目 `OrderServiceImpl.updateStatus`）
+
+`OrderServiceImpl` 里只更新 status 列、不动其他字段的写法：
+
+```java
+@Override
+public void updateStatus(Long id, Integer status) {
+    // of() 校验非法状态码，非法值抛 IllegalArgumentException 转 400
+    this.lambdaUpdate()
+            .eq(Order::getId, id)
+            .set(Order::getStatus, OrderStatusEnum.of(status).getCode())
+            .update();
+}
+```
+
+等价 SQL：
+
+```sql
+UPDATE mall_order SET status = ? WHERE id = ?
+```
+
+要点：
+
+1. **`this.lambdaUpdate()`**：`this` 是 `ServiceImpl<OrderMapper, Order>`，直接拿到 `LambdaUpdateChainWrapper<Order>`，无需注入额外 mapper；
+2. **`.eq(Order::getId, id)`**：拼 `WHERE id = ?`，字段名用 lambda 方法引用，重命名编译期就能发现；
+3. **`.set(Order::getStatus, ...)`**：拼 `SET status = ?`，**只更新指定列**，不会把其他列置为 null；
+4. **`.update()`**：触发执行，底层走 `baseMapper.update(entity, wrapper)`，返回 boolean。
+
+## 7.3 常见链式写法对照
+
+**多字段更新**
+
+```java
+this.lambdaUpdate()
+        .eq(Order::getId, id)
+        .set(Order::getStatus, newStatus)
+        .set(Order::getRemark, "已处理")
+        .update();
+```
+
+**条件删除**
+
+```java
+this.lambdaUpdate()
+        .eq(Order::getCustomerId, customerId)
+        .eq(Order::getStatus, 0)   // 待付款
+        .remove();
+```
+
+**链式查询单条 / 计数 / 分页**
+
+```java
+Order one = this.lambdaQuery().eq(Order::getOrderNo, "ORD001").one();
+long cnt = this.lambdaQuery().eq(Order::getStatus, 1).count();
+```
+
+**链式查询等价于手写 `LambdaQueryWrapper`**
+
+```java
+// 现有写法（注入了 mapper，直接用 wrapper）
+LambdaQueryWrapper<OrderItem> qw = new LambdaQueryWrapper<>();
+qw.in(OrderItem::getOrderId, orderIds);
+List<OrderItem> items = orderItemMapper.selectList(qw);
+
+// 改成走 Service 的链式等价写法（需要注入 orderItemService）
+List<OrderItem> items = orderItemService.lambdaQuery()
+        .in(OrderItem::getOrderId, orderIds)
+        .list();
+```
+
+两种写法效果一致；本项目因为注入的是 `orderItemMapper` 而非 service，直接用 wrapper 更顺，不必为了链式再造一层 service。
+
+## 7.4 `ServiceImpl` 直接继承的现成方法
+
+不想用链式时，`ServiceImpl` 还挂了一批基础 CRUD 方法，单表简单场景最省心：
+
+```java
+this.save(order);          // INSERT
+this.updateById(order);    // UPDATE BY id（按实体整体更新）
+this.removeById(id);       // DELETE BY id
+this.getById(id);          // SELECT BY id
+this.list();               // SELECT 全表
+this.saveBatch(list);      // 批量 INSERT
+this.saveOrUpdate(order);   // 有 id 更新，无 id 插入
+this.count();
+```
+
+## 7.5 链式更新 vs `updateById` 的选型
+
+| 写法                           | 行为                                           | 适用场景                       |
+| ------------------------------ | ---------------------------------------------- | ------------------------------ |
+| `this.lambdaUpdate().set(...)` | **只更新 set 指定字段**，其他列不动            | 只改某几个字段（最安全）       |
+| `this.updateById(order)`       | 按 `@TableField` 策略整体更新（null 可能覆盖） | 整体回写一个已加载好的实体对象 |
+
+本项目 `updateStatus` 选 `lambdaUpdate` 是对的——只想改 status，不想动 remark、totalAmount 等其他列。
+
+## 7.6 与本项目其他写法的对照
+
+- [OrderServiceImpl.java:64](file:///Users/lixiang/Documents/project/ai/ai-mall/services/mall-api/src/main/java/com/mall/api/service/impl/OrderServiceImpl.java#L64) `baseMapper.insert(order)`：等价于 `this.save(order)`，差别不大，习惯问题；
+- [OrderServiceImpl.java:89-91](file:///Users/lixiang/Documents/project/ai/ai-mall/services/mall-api/src/main/java/com/mall/api/service/impl/OrderServiceImpl.java#L89-L91) `LambdaQueryWrapper + orderItemMapper.selectList`：因为注入的是 mapper 不是 service，直接用 wrapper 更顺；
+- [OrderServiceImpl.java:109-112](file:///Users/lixiang/Documents/project/ai/ai-mall/services/mall-api/src/main/java/com/mall/api/service/impl/OrderServiceImpl.java#L109-L112) 链式更新：只更新 status 列的安全写法。
+
+## 7.7 选型原则
+
+- 单表按 id 增删改查 → `save/updateById/getById/removeById`；
+- 单表条件查询/更新/删除 → `lambdaQuery() / lambdaUpdate()`；
+- 单表只改几个字段 → **`lambdaUpdate().set(...).update()`（最安全）**；
+- 多表 JOIN、聚合、嵌套 resultMap → 走 `baseMapper` + XML（如本项目 `selectOrderPage` / `selectOrderVOById`）。

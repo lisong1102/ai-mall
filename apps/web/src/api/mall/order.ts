@@ -1,10 +1,5 @@
 import { mallHttp } from "../http";
-import type {
-  OrderSaveReq,
-  OrderVO,
-  PageParams,
-  PageResult,
-} from "./types";
+import type { OrderSaveReq, OrderVO, PageParams, PageResult } from "./types";
 
 /** 订单状态：0待付款 1已付款 2已发货 3已完成 4已取消 */
 export type OrderStatus = 0 | 1 | 2 | 3 | 4;
@@ -14,7 +9,7 @@ export async function pageOrders(
   params?: PageParams & {
     orderNo?: string;
     customerId?: string;
-    status?: OrderStatus;
+    status?: OrderStatus | "";
   },
 ) {
   const res = await mallHttp.get<PageResult<OrderVO>>("/orders", { params });

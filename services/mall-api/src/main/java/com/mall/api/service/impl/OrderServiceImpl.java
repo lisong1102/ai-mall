@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.mall.api.common.PageResult;
+import com.mall.api.common.enums.OrderStatusEnum;
 import com.mall.api.controller.dto.OrderItemReq;
 import com.mall.api.controller.dto.OrderItemVO;
 import com.mall.api.controller.dto.OrderSaveReq;
@@ -53,12 +54,12 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
             totalAmount = totalAmount.add(subtotal);
         }
 
-        // 3. 插入订单主表（状态默认 0 待付款）
+        // 3. 插入订单主表（状态默认待付款）
         Order order = new Order();
         order.setOrderNo(orderNo);
         order.setCustomerId(req.getCustomerId());
         order.setTotalAmount(totalAmount);
-        order.setStatus(0);
+        order.setStatus(OrderStatusEnum.PENDING_PAYMENT.getCode());
         order.setRemark(req.getRemark());
         baseMapper.insert(order);
 
@@ -104,9 +105,10 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
     @Override
     public void updateStatus(Long id, Integer status) {
+        // of() 校验非法状态码，非法值抛 IllegalArgumentException 转 400
         this.lambdaUpdate()
                 .eq(Order::getId, id)
-                .set(Order::getStatus, status)
+                .set(Order::getStatus, OrderStatusEnum.of(status).getCode())
                 .update();
     }
 

@@ -1,6 +1,7 @@
 export * from "./types";
 export * from "./health";
 export * from "./auth";
+export * from "./enum";
 export * from "./category";
 export * from "./product";
 export * from "./customer";

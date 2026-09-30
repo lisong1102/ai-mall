@@ -18,6 +18,14 @@ export interface PageResult<T> {
   size: number;
 }
 
+// ---------- 通用枚举 ----------
+/** 枚举选项（字典项），color 为 antd Tag 颜色等展示提示，可能为 null */
+export interface EnumOption {
+  code: number;
+  label: string;
+  color: string | null;
+}
+
 // ---------- 类目 ----------
 export interface Category {
   id: string;

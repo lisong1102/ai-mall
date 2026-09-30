@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, type CSSProperties } from "react";
+import { useMemo, useState, type CSSProperties } from "react";
 import {
   Card,
   Input,
@@ -11,25 +11,31 @@ import {
   Drawer,
   Descriptions,
   Spin,
+  Modal,
+  InputNumber,
+  Radio,
+  message,
+  Popconfirm,
+  Space,
 } from "antd";
 import type { TableProps } from "antd";
 import { DownloadOutlined } from "@ant-design/icons";
-import { useQuery } from "@tanstack/react-query";
-import { OrderVO, OrderItemVO, pageOrders, getOrder } from "@/api/mall";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  OrderVO,
+  OrderItemVO,
+  pageOrders,
+  getOrder,
+  getEnums,
+  OrderStatus,
+  applyAfterSale,
+  updateOrderStatus,
+} from "@/api/mall";
 import dayjs from "dayjs";
 
 export const Route = createFileRoute("/_admin/orders")({
   component: Orders,
 });
-
-/** 订单状态：0待付款 1已付款 2已发货 3已完成 4已取消 */
-const ORDER_STATUS_MAP: Record<number, { label: string; color: string }> = {
-  0: { label: "待付款", color: "gold" },
-  1: { label: "已付款", color: "blue" },
-  2: { label: "已发货", color: "cyan" },
-  3: { label: "已完成", color: "green" },
-  4: { label: "已取消", color: "default" },
-};
 
 const actionLinkStyle: CSSProperties = {
   color: "var(--color-jade-deep)",
@@ -67,18 +73,68 @@ const itemColumns: TableProps<OrderItemVO>["columns"] = [
 ];
 
 function Orders() {
+  const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [size, setSize] = useState(10);
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState<OrderStatus | "">("");
   const [detailId, setDetailId] = useState<string | null>(null);
+  // 申请售后：目标订单与表单状态
+  const [asTarget, setAsTarget] = useState<OrderVO | null>(null);
+  const [asType, setAsType] = useState<number>(1);
+  const [asReason, setAsReason] = useState("");
+  const [asAmount, setAsAmount] = useState<number | null>(null);
+
+  const applyMutation = useMutation({
+    mutationFn: (req: { orderId: string; customerId: string }) =>
+      applyAfterSale({
+        ...req,
+        type: asType,
+        reason: asReason || undefined,
+        refundAmount: asAmount ?? undefined,
+      }),
+    onSuccess: () => {
+      message.success("售后申请已提交，可在售后管理中审核");
+      setAsTarget(null);
+      queryClient.invalidateQueries({ queryKey: ["after-sales"] });
+    },
+    onError: (e: Error) => message.error(e.message),
+  });
+
+  // 订单状态流转：仅提供合法的下一步动作，Popconfirm 确认后切换
+  const statusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: OrderStatus }) =>
+      updateOrderStatus(id, status),
+    onSuccess: () => {
+      message.success("订单状态已更新");
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+    },
+    onError: (e: Error) => message.error(e.message),
+  });
   const { data } = useQuery({
-    queryKey: ["orders", page, size],
-    queryFn: () => pageOrders({ page, size }),
+    queryKey: ["orders", page, size, search, status],
+    queryFn: () => pageOrders({ page, size, orderNo: search, status }),
   });
   const { data: detail, isLoading: detailLoading } = useQuery({
     queryKey: ["order", detailId],
     queryFn: () => getOrder(detailId as string),
     enabled: !!detailId,
   });
+  // 订单状态字典由后端统一下发，枚举低频变更故整会话缓存
+  const { data: enums } = useQuery({
+    queryKey: ["enums", "order_status"],
+    queryFn: () => getEnums(["order_status"]),
+    staleTime: Infinity,
+  });
+  const statusOptions = useMemo(() => enums?.order_status ?? [], [enums]);
+  const statusMap = useMemo(
+    () =>
+      Object.fromEntries(statusOptions.map((o) => [o.code, o])) as Record<
+        number,
+        { label: string; color: string | null }
+      >,
+    [statusOptions],
+  );
 
   const columns: TableProps<OrderVO>["columns"] = [
     { title: "订单号", dataIndex: "orderNo", key: "orderNo", className: "num" },
@@ -107,10 +163,10 @@ function Orders() {
       key: "status",
       render: (status: number) => (
         <Tag
-          color={ORDER_STATUS_MAP[status]?.color}
+          color={statusMap[status]?.color ?? undefined}
           style={{ borderRadius: 999 }}
         >
-          {ORDER_STATUS_MAP[status]?.label ?? status}
+          {statusMap[status]?.label ?? status}
         </Tag>
       ),
     },
@@ -126,28 +182,89 @@ function Orders() {
       title: "操作",
       key: "action",
       align: "right",
-      render: (_, o) => (
-        <>
-          <a style={actionLinkStyle} onClick={() => setDetailId(o.id)}>
+      render: (_, o) => {
+        const link = { ...actionLinkStyle, marginRight: 0 };
+        /** 取消订单（待付款/已付款 可取消） */
+        const cancelAction = (
+          <Popconfirm
+            key="cancel"
+            title="确认取消该订单？"
+            onConfirm={() => statusMutation.mutate({ id: o.id, status: 4 })}
+            okText="确认取消"
+            okButtonProps={{ danger: true }}
+            cancelText="返回"
+          >
+            <a style={{ ...link, color: "var(--color-rose)" }}>取消订单</a>
+          </Popconfirm>
+        );
+        const actions: React.ReactNode[] = [
+          <a key="detail" style={link} onClick={() => setDetailId(o.id)}>
             详情
-          </a>
-          {o.status === 2 && <a style={actionLinkStyle}>物流</a>}
-          {o.status === 0 && (
+          </a>,
+        ];
+        if (o.status === 0) {
+          // 待付款 → 已付款 / 已取消
+          actions.push(
+            <Popconfirm
+              key="pay"
+              title="确认已收到货款？"
+              onConfirm={() => statusMutation.mutate({ id: o.id, status: 1 })}
+              okText="确认"
+              cancelText="取消"
+            >
+              <a style={link}>标记付款</a>
+            </Popconfirm>,
+            cancelAction,
+          );
+        }
+        if (o.status === 1) {
+          // 已付款 → 已发货 / 已取消
+          actions.push(
+            <Popconfirm
+              key="ship"
+              title="确认订单已发货？"
+              onConfirm={() => statusMutation.mutate({ id: o.id, status: 2 })}
+              okText="确认"
+              cancelText="取消"
+            >
+              <a style={link}>发货</a>
+            </Popconfirm>,
+            cancelAction,
+          );
+        }
+        if (o.status === 2) {
+          // 已发货 → 已完成
+          actions.push(
+            <Popconfirm
+              key="complete"
+              title="确认买家已收货，订单完成？"
+              onConfirm={() => statusMutation.mutate({ id: o.id, status: 3 })}
+              okText="确认"
+              cancelText="取消"
+            >
+              <a style={link}>确认完成</a>
+            </Popconfirm>,
+          );
+        }
+        if (o.status === 3) {
+          // 已完成 → 申请售后
+          actions.push(
             <a
-              style={{
-                ...actionLinkStyle,
-                color: "var(--color-rose)",
-                marginRight: 0,
+              key="after-sale"
+              style={link}
+              onClick={() => {
+                setAsType(1);
+                setAsReason("");
+                setAsAmount(o.totalAmount);
+                setAsTarget(o);
               }}
             >
-              催付
-            </a>
-          )}
-          {o.status === 3 && (
-            <a style={{ ...actionLinkStyle, marginRight: 0 }}>售后单</a>
-          )}
-        </>
-      ),
+              申请售后
+            </a>,
+          );
+        }
+        return <Space size={12}>{actions}</Space>;
+      },
     },
   ];
 
@@ -193,15 +310,22 @@ function Orders() {
             flexWrap: "wrap",
           }}
         >
-          <Input placeholder="订单号 / 客户姓名" style={{ width: 200 }} />
+          <Input
+            placeholder="订单号"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{ width: 200 }}
+          />
           <Select
-            defaultValue="all"
+            value={status}
+            onChange={(e) => setStatus(e)}
             style={{ width: 130 }}
             options={[
-              { value: "all", label: "全部状态" },
-              { value: "2", label: "已发货" },
-              { value: "3", label: "已完成" },
-              { value: "0", label: "待付款" },
+              { value: "", label: "全部状态" },
+              ...statusOptions.map((o) => ({
+                value: String(o.code),
+                label: o.label,
+              })),
             ]}
           />
           <Button type="primary" style={{ height: 37, borderRadius: 11 }}>
@@ -271,8 +395,8 @@ function Orders() {
                   {detail.customerName ?? "—"}
                 </Descriptions.Item>
                 <Descriptions.Item label="状态">
-                  <Tag color={ORDER_STATUS_MAP[detail.status]?.color}>
-                    {ORDER_STATUS_MAP[detail.status]?.label ?? detail.status}
+                  <Tag color={statusMap[detail.status]?.color ?? undefined}>
+                    {statusMap[detail.status]?.label ?? detail.status}
                   </Tag>
                 </Descriptions.Item>
                 <Descriptions.Item label="订单金额" span={2}>
@@ -302,6 +426,70 @@ function Orders() {
           )}
         </Spin>
       </Drawer>
+
+      {/* 申请售后弹窗 */}
+      <Modal
+        title="申请售后"
+        open={!!asTarget}
+        onCancel={() => setAsTarget(null)}
+        onOk={() =>
+          asTarget &&
+          applyMutation.mutate({
+            orderId: asTarget.id,
+            customerId: asTarget.customerId,
+          })
+        }
+        okText="提交申请"
+        confirmLoading={applyMutation.isPending}
+        destroyOnHidden
+      >
+        {asTarget && (
+          <div style={{ display: "grid", gap: 14, paddingTop: 4 }}>
+            <Descriptions column={1} size="small" bordered>
+              <Descriptions.Item label="订单号">
+                <span className="num">{asTarget.orderNo}</span>
+              </Descriptions.Item>
+              <Descriptions.Item label="客户">
+                {asTarget.customerName ?? "—"}
+              </Descriptions.Item>
+              <Descriptions.Item label="订单金额">
+                <span className="num">¥{asTarget.totalAmount.toFixed(2)}</span>
+              </Descriptions.Item>
+            </Descriptions>
+            <div>
+              <div style={{ marginBottom: 6, fontSize: 13 }}>售后类型</div>
+              <Radio.Group
+                value={asType}
+                onChange={(e) => setAsType(e.target.value)}
+              >
+                <Radio value={1}>仅退款</Radio>
+                <Radio value={2}>退货退款</Radio>
+              </Radio.Group>
+            </div>
+            <div>
+              <div style={{ marginBottom: 6, fontSize: 13 }}>申请原因</div>
+              <Input.TextArea
+                rows={2}
+                maxLength={255}
+                placeholder="如：商品破损 / 尺寸不合适"
+                value={asReason}
+                onChange={(e) => setAsReason(e.target.value)}
+              />
+            </div>
+            <div>
+              <div style={{ marginBottom: 6, fontSize: 13 }}>退款金额</div>
+              <InputNumber
+                style={{ width: 200 }}
+                min={0}
+                precision={2}
+                addonBefore="¥"
+                value={asAmount}
+                onChange={(v) => setAsAmount(v)}
+              />
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

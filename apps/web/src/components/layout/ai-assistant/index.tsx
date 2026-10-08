@@ -4,7 +4,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import AssistantHeader from "./assistant-header";
 import AssistantFooter from "./assistant-footer";
-import { WELCOME_MESSAGE, aiAvatar, userAvatar } from "./constants";
+import { WELCOME_MESSAGE, aiAvatar, userAvatar } from "../../chat/constants";
 import { useChatStream } from "@/hooks/use-chat-stream";
 
 export default function AIAssistant() {

@@ -1,5 +1,5 @@
 import { Sender } from "@ant-design/x";
-import { QUICK_PROMPTS } from "./constants";
+import { QUICK_PROMPTS } from "../../chat/constants";
 
 interface AssistantFooterProps {
   input: string;

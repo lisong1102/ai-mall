@@ -3,6 +3,7 @@ import Sidebar from "./sidebar";
 import Topbar from "./topbar";
 import AIAssistant from "./ai-assistant/index";
 import CartDrawer from "@/components/shop/cart-drawer";
+import { useAssistantStore } from "@/store/use-assistant-store";
 
 const titleMap: Record<string, string> = {
   "/dashboard": "经营概况",
@@ -19,6 +20,7 @@ const titleMap: Record<string, string> = {
 
 export default function AdminLayout() {
   const location = useLocation();
+  const assistantOpen = useAssistantStore((s) => s.open);
   const path = location.pathname === "/" ? "/dashboard" : location.pathname;
   const title =
     titleMap[path] ?? (path.startsWith("/shop/") ? "商品详情" : "经营概况");
@@ -29,7 +31,7 @@ export default function AdminLayout() {
         position: "relative",
         zIndex: 1,
         display: "grid",
-        gridTemplateColumns: "236px 1fr 392px",
+        gridTemplateColumns: assistantOpen ? "236px 1fr 392px" : "236px 1fr",
         height: "100vh",
         gap: 18,
         padding: 18,
@@ -52,7 +54,7 @@ export default function AdminLayout() {
         <CartDrawer />
       </main>
 
-      <AIAssistant />
+      {assistantOpen && <AIAssistant />}
     </div>
   );
 }

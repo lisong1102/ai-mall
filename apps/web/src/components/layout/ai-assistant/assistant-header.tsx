@@ -7,11 +7,13 @@ import {
   DownOutlined,
   HistoryOutlined,
   DeleteOutlined,
+  CloseOutlined,
 } from "@ant-design/icons";
 import {
   listConversations,
   type ConversationItem,
 } from "@/api/ai/conversation";
+import { useAssistantStore } from "@/store/use-assistant-store";
 
 interface AssistantHeaderProps {
   /** 当前会话 id，用于下拉中高亮 */
@@ -43,6 +45,7 @@ export default function AssistantHeader({
 }: AssistantHeaderProps) {
   const [items, setItems] = useState<ConversationItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const closeAssistant = useAssistantStore((s) => s.closeAssistant);
 
   // 下拉展开时拉取最新会话列表；每次展开都刷新，保证新建/聊完后即时出现
   const handleOpenChange = async (open: boolean) => {
@@ -172,6 +175,9 @@ export default function AssistantHeader({
             <DownOutlined />
           </button>
         </Dropdown>
+        <button style={iconBtnStyle} title="关闭助手" onClick={closeAssistant}>
+          <CloseOutlined />
+        </button>
       </div>
     </div>
   );

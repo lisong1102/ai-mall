@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { BubbleItemType } from "@ant-design/x";
 import { readSse } from "@/lib/sse";
@@ -222,6 +222,17 @@ export function useChatStream({
     },
     [loading, userAvatar, aiAvatar],
   );
+
+  /** 页面刷新时从 URL 恢复会话：URL 携带 conversationId 则拉历史记录 */
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("conversationId");
+    if (id && id !== conversationIdRef.current) {
+      switchConversation(id);
+    }
+    // 仅在挂载时执行一次
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return {
     messages,

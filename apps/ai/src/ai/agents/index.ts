@@ -1,4 +1,10 @@
-import { normalAgent } from "./langchain/normal";
+import { complaintAgent } from "./complaintAgent";
+import { normalAgent } from "./normal";
+import { orderAgent } from "./orderAgent";
+import { refundAgent } from "./refundAgent";
+
+export type AgentKey = keyof typeof agents;
+export const DEFAULT_AGENT_KEY: AgentKey = "normal";
 
 /**
  * Agent 注册表：业务增多时在此登记。
@@ -10,14 +16,7 @@ import { normalAgent } from "./langchain/normal";
  */
 export const agents = {
   normal: normalAgent,
+  order: orderAgent,
+  complaint: complaintAgent,
+  refund: refundAgent,
 } as const;
-
-export type AgentKey = keyof typeof agents;
-export const DEFAULT_AGENT_KEY: AgentKey = "normal";
-
-/** 按 key 取 agent；未知 key 抛错（service 上层 catch 转 422） */
-export function getAgent(key: string) {
-  const a = agents[key as AgentKey];
-  if (!a) throw new Error(`未知 agent: ${key}`);
-  return a;
-}

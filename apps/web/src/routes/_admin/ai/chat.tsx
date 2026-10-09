@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { Avatar, Button, Tabs, Input } from "antd";
 import { Bubble, Sender, Conversations } from "@ant-design/x";
 import type { BubbleItemType, ConversationsProps } from "@ant-design/x";
@@ -15,6 +16,7 @@ import {
 } from "@ant-design/icons";
 import { conversations } from "@/data/mock";
 import { useChatStream } from "@/hooks/use-chat-stream";
+import { listConversations } from "@/api/ai";
 import {
   aiAvatar,
   userAvatar,
@@ -51,6 +53,13 @@ function AIChat() {
     userAvatar,
     aiAvatar,
   });
+
+  const { data: conversations } = useQuery({
+    queryKey: ["conversations"],
+    queryFn: () => listConversations(),
+  });
+  const currentTitle =
+    conversations?.find((c) => c.id === conversationId)?.title ?? "新会话";
 
   return (
     <div
@@ -143,7 +152,7 @@ function AIChat() {
               borderBottom: "1px solid var(--color-line-soft)",
             }}
           >
-            <b style={{ fontSize: 14 }}>青风 Pro 商品文案优化</b>
+            <b style={{ fontSize: 14 }}>{currentTitle}</b>
             <div style={{ display: "flex", gap: 6, marginLeft: 10 }}>
               <span
                 style={{

@@ -22,6 +22,9 @@ export const kimiModel = new ChatOpenAI({
     apiKey: process.env.Kimi_API_KEY,
   },
   temperature: 1,
+  // 注意：kimi-k2.7-code 只允许 thinking.type=enabled、temperature=1，无法调整。
+  // 因此不适合做严格的结构化输出（functionCalling 与 thinking 冲突），
+  // 结构化分类请改用 deepseekModel。
 });
 
 export const model = new ChatOpenAI({

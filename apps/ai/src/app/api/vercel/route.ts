@@ -1,4 +1,4 @@
-import { weatherAgent } from "@/agents/vercel/weather-agent";
+import { weatherAgent } from "@/ai/vercel/weather-agent";
 import { parseJsonBody } from "@/lib/ai/http";
 import { ChatRequestSchema, chatService } from "@/lib/ai/services/chat-service";
 import { ModelMessage } from "ai";

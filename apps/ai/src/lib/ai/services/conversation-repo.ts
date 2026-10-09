@@ -1,7 +1,7 @@
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/lib/ai/db";
 import { conversations, messages } from "@/lib/ai/schema";
-import type { AgentKey } from "@/agents";
+import type { AgentKey } from "@/ai/agents";
 
 /**
  * Conversation + Message 的 DB CRUD。

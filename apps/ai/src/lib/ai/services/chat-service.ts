@@ -1,12 +1,13 @@
 import { z } from "zod";
-import { DEFAULT_AGENT_KEY, getAgent, type AgentKey } from "@/agents";
+import { DEFAULT_AGENT_KEY, type AgentKey } from "@/ai/agents";
+import { graph } from "@/ai/index";
 import {
   createConversation,
   getConversation,
   insertMessage,
   updateTitle,
 } from "./conversation-repo";
-import analysisChain from "@/agents/langchain/conversationAgent";
+import analysisChain from "@/ai/agents/conversationAgent";
 
 /**
  * Chat 接口的请求 schema。
@@ -103,7 +104,7 @@ export const chatService = {
       isNew = true;
     }
 
-    const agent = getAgent(agentKey);
+    const agent = graph;
 
     // ── 3. 存 user message（先落库，避免丢）───────────────
     await insertMessage(conversationId, "user", input.message);

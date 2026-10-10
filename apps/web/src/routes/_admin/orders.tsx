@@ -6,7 +6,6 @@ import {
   Select,
   Button,
   Tag,
-  Pagination,
   Table,
   Drawer,
   Descriptions,
@@ -94,9 +93,11 @@ function Orders() {
         refundAmount: asAmount ?? undefined,
       }),
     onSuccess: () => {
-      message.success("售后申请已提交，可在售后管理中审核");
+      message.success("售后申请已提交，订单已置为退款中，可在售后管理中审核");
       setAsTarget(null);
       queryClient.invalidateQueries({ queryKey: ["after-sales"] });
+      // 申请售后联动订单状态 → 退款中，需同步刷新订单列表
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
     },
     onError: (e: Error) => message.error(e.message),
   });
@@ -342,39 +343,14 @@ function Orders() {
             total: data?.total || 0,
             current: page,
             pageSize: size,
+            showTotal: (t) =>
+              `共 ${t} 条 · 第 ${page}/${Math.max(1, Math.ceil(t / size))} 页`,
             onChange(page, pageSize) {
               setPage(page);
               setSize(pageSize);
             },
           }}
         />
-
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            justifyContent: "flex-end",
-            marginTop: 16,
-          }}
-        >
-          <span
-            style={{
-              fontSize: 12,
-              color: "var(--color-ink-3)",
-              marginRight: "auto",
-            }}
-            className="num"
-          >
-            共 86 条 · 第 1/9 页
-          </span>
-          <Pagination
-            defaultCurrent={1}
-            total={86}
-            pageSize={10}
-            showSizeChanger={false}
-          />
-        </div>
       </Card>
 
       <Drawer

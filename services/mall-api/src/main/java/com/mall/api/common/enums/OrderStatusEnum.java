@@ -16,7 +16,9 @@ public enum OrderStatusEnum implements BaseEnum {
     PAID(1, "已付款", "blue"),
     SHIPPED(2, "已发货", "cyan"),
     COMPLETED(3, "已完成", "green"),
-    CANCELLED(4, "已取消", "default");
+    CANCELLED(4, "已取消", "default"),
+    REFUNDING(5, "退款中", "orange"),
+    REFUNDED(6, "已退款", "purple");
 
     private final Integer code;
     private final String label;

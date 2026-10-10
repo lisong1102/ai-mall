@@ -117,7 +117,7 @@ export interface OrderVO {
   customerId: string;
   customerName: string | null;
   totalAmount: number;
-  /** 0待付款 1已付款 2已发货 3已完成 4已取消 */
+  /** 0待付款 1已付款 2已发货 3已完成 4已取消 5退款中 6已退款 */
   status: number;
   remark: string | null;
   createdAt: string;

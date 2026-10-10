@@ -43,13 +43,13 @@ public class AfterSaleController {
     }
 
     @PostMapping
-    @Operation(summary = "申请售后", description = "创建售后单，状态固定为 0 申请中")
+    @Operation(summary = "申请售后", description = "创建售后单（状态固定为 0 申请中），并将订单置为 5 退款中；仅已完成订单可申请")
     public Result<Long> apply(@Valid @RequestBody AfterSaleSaveReq req) {
         return Result.ok(afterSaleService.apply(req));
     }
 
     @PutMapping("/{id}/review")
-    @Operation(summary = "审核售后", description = "pass=true 审核通过(1)，pass=false 拒绝(3)；仅申请中(0)的可审核")
+    @Operation(summary = "审核售后", description = "pass=true 审核通过(1)且订单置为 6 已退款，pass=false 拒绝(3)且订单恢复 3 已完成；仅申请中(0)的可审核")
     public Result<Void> review(@PathVariable Long id,
                                @Parameter(description = "是否通过：true通过 false拒绝", required = true)
                                @RequestParam boolean pass) {

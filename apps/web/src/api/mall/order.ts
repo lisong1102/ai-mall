@@ -1,8 +1,8 @@
 import { mallHttp } from "../http";
 import type { OrderSaveReq, OrderVO, PageParams, PageResult } from "./types";
 
-/** 订单状态：0待付款 1已付款 2已发货 3已完成 4已取消 */
-export type OrderStatus = 0 | 1 | 2 | 3 | 4;
+/** 订单状态：0待付款 1已付款 2已发货 3已完成 4已取消 5退款中 6已退款 */
+export type OrderStatus = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
 /** 分页查询订单（订单号模糊 + 客户/状态过滤，联表返回客户名） */
 export async function pageOrders(

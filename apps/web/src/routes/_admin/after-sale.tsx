@@ -69,8 +69,10 @@ function AfterSale() {
     mutationFn: ({ id, pass }: { id: string; pass: boolean }) =>
       reviewAfterSale(id, pass),
     onSuccess: (_, { pass }) => {
-      message.success(pass ? "已通过" : "已拒绝");
+      message.success(pass ? "已通过，订单已置为已退款" : "已拒绝，订单已恢复已完成");
       queryClient.invalidateQueries({ queryKey: ["after-sales"] });
+      // 审核联动订单状态（通过→已退款 / 拒绝→恢复已完成），需同步刷新订单列表
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
     },
     onError: (e: Error) => message.error(e.message),
   });

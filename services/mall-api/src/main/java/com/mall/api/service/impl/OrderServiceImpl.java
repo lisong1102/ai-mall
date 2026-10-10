@@ -86,11 +86,16 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         IPage<OrderVO> pResult = baseMapper.selectOrderPage(p, orderNo, customerId, status);
         List<Long> orderIds = pResult.getRecords().stream().map(OrderVO::getId).toList();
         // 2.单独查询每个订单的明细
-        LambdaQueryWrapper<OrderItem> qw = new LambdaQueryWrapper<>();
-        qw.in(OrderItem::getOrderId, orderIds);
-        List<OrderItem> items = orderItemMapper.selectList(qw);
-        Map<Long, List<OrderItemVO>> itemMap = items.stream().map(this::toVO)
-                .collect(Collectors.groupingBy(OrderItemVO::getOrderId));
+        // 订单结果为空时跳过 order_item 查询，避免 IN () 在 PostgreSQL 报语法错误
+        Map<Long, List<OrderItemVO>> itemMap;
+        if (orderIds.isEmpty()) {
+            itemMap = Map.of();
+        } else {
+            LambdaQueryWrapper<OrderItem> qw = new LambdaQueryWrapper<>();
+            qw.in(OrderItem::getOrderId, orderIds);
+            itemMap = orderItemMapper.selectList(qw).stream().map(this::toVO)
+                    .collect(Collectors.groupingBy(OrderItemVO::getOrderId));
+        }
         // 3. 填充明细
         pResult.getRecords().forEach(vo -> vo.setItems(itemMap.getOrDefault(vo.getId(), List.of())));
 

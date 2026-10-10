@@ -9,6 +9,7 @@ import {
   type ConversationMessage,
 } from "@/api/ai/conversation";
 import { getToken } from "@/lib/auth-token";
+import { QueryClient, useQueryClient } from "@tanstack/react-query";
 
 interface UseChatStreamOptions {
   /** 初始消息（如欢迎语气泡） */
@@ -37,7 +38,7 @@ export function useChatStream({
   const [conversationId, setConversationId] = useState<string | undefined>(
     undefined,
   );
-
+  const queryClient = useQueryClient();
   const conversationIdRef = useRef<string | undefined>(undefined);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -173,6 +174,15 @@ export function useChatStream({
           const ev = data as ChatStreamEvent;
           if (ev.error) throw new Error(ev.error);
           if (ev.conversationId) {
+            // 生成新会话时，刷新会话列表缓存
+            if (
+              ev.conversationId !== conversationIdRef.current &&
+              !conversationIdRef.current
+            ) {
+              queryClient.invalidateQueries({
+                queryKey: ["conversations"],
+              });
+            }
             conversationIdRef.current = ev.conversationId;
             setConversationId(ev.conversationId);
           }

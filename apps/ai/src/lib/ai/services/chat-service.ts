@@ -30,6 +30,8 @@ export type ChatRequest = z.infer<typeof ChatRequestSchema>;
 export interface ChatUser {
   userId: string;
   username: string;
+  /** 用户 JWT，透传进 LangChain configurable，供工具调用 mall-api 时携带 */
+  token: string;
 }
 
 export interface ChatResponse {
@@ -117,9 +119,13 @@ export const chatService = {
         messages: [{ role: "user", content: input.message }],
       },
       {
-        streamMode: "messages",
+        streamMode: ["messages", "updates"],
         signal,
-        configurable: { thread_id: conversationId },
+        configurable: {
+          thread_id: conversationId,
+          // 透传用户 JWT，LangChain 工具经 mallServerFetch 携带鉴权
+          userToken: user.token,
+        },
       },
     );
 
@@ -127,13 +133,22 @@ export const chatService = {
     // langchain 1.x createAgent 的模型节点名是 model_request（不是旧版 agent）
     // 用消息类型 ai 判断比硬编码节点名更稳；工具结果消息（tool）不推给前端
     let assistantBuffer = "";
-    for await (const [chunk, metadata] of stream) {
-      if (metadata?.langgraph_node !== "model_request") continue;
-      if (chunk._getType?.() !== "ai") continue;
-      const content = chunk.content;
-      if (typeof content !== "string" || content.length === 0) continue;
-      assistantBuffer += content;
-      yield { conversationId, delta: content };
+    for await (const block of stream) {
+      const [mode, payload] = block;
+      if (mode === "messages") {
+        const [chunk, metadata] = payload;
+        console.log(payload, "messages");
+        if (metadata?.langgraph_node !== "model_request") continue;
+        if (chunk._getType?.() !== "ai") continue;
+        const content = chunk.content;
+        if (typeof content !== "string" || content.length === 0) continue;
+        assistantBuffer += content;
+        yield { conversationId, delta: content };
+      } else if (mode === "updates") {
+        console.log(payload, "updates");
+      } else if (mode === "custom") {
+        break;
+      }
     }
 
     // ── 6. 正常结束：存 assistant + 首条消息更新 title ─────

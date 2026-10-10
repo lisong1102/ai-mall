@@ -10,6 +10,8 @@ import { jwtVerify, type JWTPayload } from "jose";
 export interface AuthUser {
   userId: string;
   username: string;
+  /** 原始 JWT，供 LangChain 工具透传给 Java mall-api（保持与前端直连一致的鉴权模型） */
+  token: string;
 }
 
 let cachedKey: Uint8Array | null = null;
@@ -38,17 +40,22 @@ export async function verifyAuth(req: Request): Promise<AuthUser | null> {
     const { payload } = await jwtVerify(token, getSecretKey(), {
       algorithms: ["HS256"],
     });
-    return extractUser(payload);
+    const user = extractUser(payload);
+    if (!user) return null;
+    // 保留原始 token，供下游工具透传给 Java
+    return { ...user, token };
   } catch (e) {
     console.error(e);
     return null;
   }
 }
 
-function extractUser(payload: JWTPayload): AuthUser {
+function extractUser(
+  payload: JWTPayload,
+): Pick<AuthUser, "userId" | "username"> | null {
   const userId = payload.sub;
   const username = payload.username as string | undefined;
-  if (!userId || !username) return null!;
+  if (!userId || !username) return null;
   return { userId, username };
 }
 

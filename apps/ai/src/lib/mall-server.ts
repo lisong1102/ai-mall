@@ -34,7 +34,9 @@ export async function mallServerFetch<T>(
   });
   const result = (await res.json()) as Result<T>;
   if (!res.ok || result.code !== 0) {
-    throw new Error(result.message ?? `mall-api 请求失败（HTTP ${res.status}）`);
+    throw new Error(
+      result.message ?? `mall-api 请求失败（HTTP ${res.status}）`,
+    );
   }
   return result.data;
 }

@@ -37,7 +37,6 @@ export async function route(
       },
       ...messages,
     ]);
-    console.log(result, "result");
     return result;
   } catch (error) {
     console.error("分诊失败错误supervisor:", error);

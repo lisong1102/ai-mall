@@ -1,4 +1,11 @@
-import { pgSchema, uuid, text, timestamp, index } from "drizzle-orm/pg-core";
+import {
+  pgSchema,
+  uuid,
+  text,
+  timestamp,
+  index,
+  jsonb,
+} from "drizzle-orm/pg-core";
 
 /**
  * AI 服务的表结构定义（纯声明，不含运行时连接）。
@@ -50,7 +57,10 @@ export const messages = ai.table(
       .notNull()
       .references(() => conversations.id, { onDelete: "cascade" }),
     role: text("role").notNull(),
-    content: text("content").notNull(),
+    // MessagePart[]：[{type:"text",text}|{type:"approval",...}|{type:"component",...}]
+    content: jsonb("content").notNull(),
+    // 状态类信息：{ approval?: ApprovalMeta }
+    meta: jsonb("meta"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

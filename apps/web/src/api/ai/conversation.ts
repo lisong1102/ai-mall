@@ -1,4 +1,5 @@
 import { aiHttp } from "../http";
+import { ApprovalMeta, MessagePart } from "./chat";
 
 /** 会话列表项，与后端 listConversations 返回对齐 */
 export interface ConversationItem {
@@ -13,8 +14,9 @@ export interface ConversationItem {
 export interface ConversationMessage {
   id: string;
   role: "user" | "assistant";
-  content: string;
+  content: MessagePart[];
   createdAt: string;
+  meta?: { approval?: ApprovalMeta } | null;
 }
 
 /** 拉取当前用户的会话列表（侧边/下拉用），按最近活跃倒序 */

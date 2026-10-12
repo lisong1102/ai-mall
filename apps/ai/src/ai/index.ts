@@ -82,5 +82,7 @@ const graph = builder.compile({
   checkpointer,
 });
 
+export type Graph = typeof graph;
+
 // 导出 graph 和 getAgent
 export { graph, getAgent };

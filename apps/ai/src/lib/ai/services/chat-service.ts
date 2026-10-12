@@ -5,9 +5,18 @@ import {
   createConversation,
   getConversation,
   insertMessage,
+  resolveApprovalMeta,
   updateTitle,
 } from "./conversation-repo";
 import analysisChain from "@/ai/agents/conversationAgent";
+import {
+  ChatStreamEvent,
+  MessagePart,
+  RefundApprovalDecision,
+  RefundApprovalRequest,
+} from "@/type/message-part";
+import { getPendingInterrupt } from "@/ai/interrupt";
+import { Command } from "@langchain/langgraph";
 
 /**
  * Chat 接口的请求 schema。
@@ -39,14 +48,81 @@ export interface ChatResponse {
   reply: string;
 }
 
-/** 流式事件：保持 `{conversationId, delta}` 协议与前端 use-chat-stream 对齐 */
-export interface ChatStreamEvent {
-  conversationId: string;
-  delta: string;
-}
-
 /** 首条 user 消息截 N 字作 conversation.title */
 const TITLE_LIMIT = 30;
+
+/** parts 组装：text 就地追加（连续文本合一段），其余新开一段。service/前端同一套规则 */
+function pushText(parts: MessagePart[], text: string) {
+  const last = parts[parts.length - 1];
+  if (last?.type === "text") last.text += text;
+  else parts.push({ type: "text", text });
+}
+
+// 固定 TStreamMode 实例化，拿多模式流的 [mode, payload] 元组联合类型；
+// 直接 ReturnType<typeof graph.stream> 会按默认重载退化为 state 对象、丢元组
+type AgentStream = Awaited<
+  ReturnType<
+    typeof graph.stream<["messages", "custom", "updates"], false, undefined>
+  >
+>;
+
+/**
+ * 消费 agent 流（stream / resume 共用），单次顺序遍历按 mode 分类 fold：
+ * - messages → model_request 的 AI 文本 delta（pushText 连续文本合一段）+ delta 事件
+ * - updates → __interrupt__ 审批请求 → approval part + approval 事件
+ * parts 由调用方传入、就地填充；结束后由调用方 persistAssistantParts 落库。
+ */
+async function* consumeAgentStream(
+  stream: AgentStream,
+  conversationId: string,
+  parts: MessagePart[],
+): AsyncGenerator<ChatStreamEvent> {
+  for await (const block of stream) {
+    const [mode, payload] = block;
+    if (mode === "messages") {
+      const [chunk, metadata] = payload;
+      if (metadata?.langgraph_node !== "model_request") continue;
+      if (chunk._getType?.() !== "ai") continue;
+      const content = chunk.content;
+      if (typeof content !== "string" || content.length === 0) continue;
+      pushText(parts, content);
+      yield { type: "delta", conversationId, delta: content };
+    } else if (mode === "updates") {
+      const item = (payload as { __interrupt__: Array<{ value: unknown }> })
+        .__interrupt__?.[0];
+      if (item) {
+        const value = item.value as RefundApprovalRequest;
+        parts.push({
+          type: "approval",
+          approval: value,
+        });
+        yield { type: "approval", conversationId, approval: value };
+      }
+    } else if (mode === "custom") {
+      console.log(block, "uuuuu");
+    }
+  }
+}
+
+/** 整轮 parts 一次性落库（原子）；含 approval part 时写 pending meta 作幂等闩 */
+async function persistAssistantParts(
+  conversationId: string,
+  parts: MessagePart[],
+) {
+  if (parts.length === 0) throw new Error("AI 未返回内容");
+  const approvalPart = parts.find(
+    (p): p is Extract<MessagePart, { type: "approval" }> =>
+      p.type === "approval",
+  );
+  await insertMessage(
+    conversationId,
+    "assistant",
+    parts,
+    approvalPart
+      ? { approval: { status: "pending", ...approvalPart.approval } }
+      : undefined,
+  );
+}
 
 /**
  * Chat 业务编排入口（route 层只调它）。
@@ -68,8 +144,10 @@ export const chatService = {
     let reply = "";
     let conversationId = "";
     for await (const ev of this.stream(input, user)) {
-      conversationId = ev.conversationId;
-      reply += ev.delta;
+      if (ev.type === "delta") {
+        conversationId = ev.conversationId;
+        reply += ev.delta;
+      }
     }
     return { conversationId, reply };
   },
@@ -89,6 +167,7 @@ export const chatService = {
     // 会话标题
     let title: string;
 
+    // 会话管理
     if (input.conversationId) {
       const conv = await getConversation(input.conversationId);
       if (!conv) throw new Error("会话不存在");
@@ -106,20 +185,23 @@ export const chatService = {
       isNew = true;
     }
 
-    const agent = graph;
+    //interrupt守卫，如果会话里面存在待恢复的 interrupt，先返回
+    const interrupt = await getPendingInterrupt(conversationId, graph);
+    if (interrupt) {
+      throw new Error("会话存在待恢复中断");
+    }
 
     // ── 3. 存 user message（先落库，避免丢）───────────────
-    await insertMessage(conversationId, "user", input.message);
+    await insertMessage(conversationId, "user", [
+      { type: "text", text: input.message },
+    ]);
 
     // ── 4. 启动 agent 流 ──────────────────────────────────
-    // streamMode: "messages" → 每个事件是 [AIMessageChunk, metadata]
     // signal 透传：前端断开时，LangChain 会中断到模型/工具的底层请求，不继续烧 token
-    const stream = await agent.stream(
+    const stream = await graph.stream(
+      { messages: [{ role: "user", content: input.message }] },
       {
-        messages: [{ role: "user", content: input.message }],
-      },
-      {
-        streamMode: ["messages", "updates"],
+        streamMode: ["messages", "custom", "updates"],
         signal,
         configurable: {
           thread_id: conversationId,
@@ -129,36 +211,54 @@ export const chatService = {
       },
     );
 
-    // ── 5. 累加 + yield delta ─────────────────────────────
-    // langchain 1.x createAgent 的模型节点名是 model_request（不是旧版 agent）
-    // 用消息类型 ai 判断比硬编码节点名更稳；工具结果消息（tool）不推给前端
-    let assistantBuffer = "";
-    for await (const block of stream) {
-      const [mode, payload] = block;
-      if (mode === "messages") {
-        const [chunk, metadata] = payload;
-        console.log(payload, "messages");
-        if (metadata?.langgraph_node !== "model_request") continue;
-        if (chunk._getType?.() !== "ai") continue;
-        const content = chunk.content;
-        if (typeof content !== "string" || content.length === 0) continue;
-        assistantBuffer += content;
-        yield { conversationId, delta: content };
-      } else if (mode === "updates") {
-        console.log(payload, "updates");
-      } else if (mode === "custom") {
-        break;
-      }
-    }
+    // ── 5. 消费流：fold parts + 透传事件 ─────────────────────
+    const parts: MessagePart[] = [];
+    //`yield*` 是`for-await` +`yield` 的语法糖
+    yield* consumeAgentStream(stream, conversationId, parts);
 
-    // ── 6. 正常结束：存 assistant + 首条消息更新 title ─────
-    // abort / 异常会从上面 for await 抛出，跳过这里 → assistant 不落库
-    if (assistantBuffer.length === 0) {
-      throw new Error("AI 未返回内容");
-    }
-    await insertMessage(conversationId, "assistant", assistantBuffer);
+    // ── 6. 整轮 parts 原子落库 ──────────────────────────────
+    await persistAssistantParts(conversationId, parts);
     if (isNew && title === "新对话") {
       await updateTitle(conversationId, input.message.slice(0, TITLE_LIMIT));
     }
+  },
+
+  async *resume(
+    conversationId: string,
+    decision: RefundApprovalDecision,
+    user: ChatUser,
+    signal?: AbortSignal,
+  ): AsyncGenerator<ChatStreamEvent> {
+    const conv = await getConversation(conversationId);
+    if (!conv || conv.userId !== user.userId) throw new Error("会话不存在");
+
+    // 2. 幂等闩：meta 翻转失败说明已被处理（双开标签页/重复点击）
+    const ok = await resolveApprovalMeta(conversationId, decision);
+    if (!ok) throw new Error("该审批已处理，请刷新页面");
+    if (!(await getPendingInterrupt(conversationId, graph))) {
+      throw new Error("当前会话没有待审批的请求");
+    }
+
+    // 3. 决策留痕（展示层 user 消息；模型靠 Command resume 拿到决策，不读消息表）
+    await insertMessage(conversationId, "user", [
+      {
+        type: "text",
+        text: `【审批】${decision.approved ? "同意" : "拒绝"}退款${decision.note ? `：${decision.note}` : ""}`,
+      },
+    ]);
+
+    // 4. 恢复执行：只重放 tools 节点（子 agent 有自己的 checkpoint），不重跑模型
+    //    userToken 必须带：工具在恢复执行时才真正调 mall-api
+    const stream = await graph.stream(new Command({ resume: decision }), {
+      streamMode: ["messages", "custom", "updates"],
+      signal,
+      configurable: { thread_id: conversationId, userToken: user.token },
+    });
+
+    // 5. 消费流：fold parts + 透传事件；6. 原子落库（resume 可能再触发新 interrupt）
+    const parts: MessagePart[] = [];
+    yield* consumeAgentStream(stream, conversationId, parts);
+    // 6.落库
+    await persistAssistantParts(conversationId, parts);
   },
 };

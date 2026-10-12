@@ -1,7 +1,12 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/lib/ai/db";
 import { conversations, messages } from "@/lib/ai/schema";
 import type { AgentKey } from "@/ai/agents";
+import {
+  MessagePart,
+  RefundApprovalDecision,
+  textContentOf,
+} from "@/type/message-part";
 
 /**
  * Conversation + Message 的 DB CRUD。
@@ -76,9 +81,10 @@ export async function listMessages(
     .orderBy(desc(messages.createdAt))
     .limit(limit);
   // 取的是"最近 N 条"，但升序喂给模型：反转
-  return rows
-    .reverse()
-    .map((r) => ({ role: r.role as "user" | "assistant", content: r.content }));
+  return rows.reverse().map((r) => ({
+    role: r.role as "user" | "assistant",
+    content: textContentOf(r.content as MessagePart[]),
+  }));
 }
 
 /**
@@ -92,6 +98,7 @@ export async function listMessagesForDisplay(conversationId: string) {
       id: messages.id,
       role: messages.role,
       content: messages.content,
+      meta: messages.meta,
       createdAt: messages.createdAt,
     })
     .from(messages)
@@ -103,11 +110,12 @@ export async function listMessagesForDisplay(conversationId: string) {
 export async function insertMessage(
   conversationId: string,
   role: "user" | "assistant",
-  content: string,
+  content: MessagePart[],
+  meta?: Record<string, unknown>,
 ) {
   const [row] = await db
     .insert(messages)
-    .values({ conversationId, role, content })
+    .values({ conversationId, role, content, meta })
     .returning();
   return row;
 }
@@ -123,4 +131,39 @@ export async function updateTitle(id: string, title: string) {
     .update(conversations)
     .set({ title, updatedAt: new Date() })
     .where(eq(conversations.id, id));
+}
+
+/**
+ * 审批状态翻转：该会话 meta.approval.status = pending 的最新一条 → resolved。
+ * 返回 false 表示没有 pending 行（已被处理）→ 作为幂等闩使用。
+ */
+export async function resolveApprovalMeta(
+  conversationId: string,
+  decision: RefundApprovalDecision,
+): Promise<boolean> {
+  const [row] = await db
+    .select()
+    .from(messages)
+    .where(
+      and(
+        eq(messages.conversationId, conversationId),
+        sql`${messages.meta}->'approval'->>'status' = 'pending'`,
+      ),
+    )
+    .orderBy(desc(messages.createdAt))
+    .limit(1);
+  if (!row) return false;
+
+  const prev = (row.meta ?? {}) as { approval?: Record<string, unknown> };
+  const meta = {
+    ...prev,
+    approval: {
+      ...prev.approval,
+      status: "resolved",
+      approved: decision.approved,
+      note: decision.note ?? null,
+    },
+  };
+  await db.update(messages).set({ meta }).where(eq(messages.id, row.id));
+  return true;
 }

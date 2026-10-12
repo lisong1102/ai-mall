@@ -25,6 +25,9 @@ import {
 import ChatConversationList from "./-ChatConversationList";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { MessagePart } from "@/api/ai/chat";
+import { renderParts } from "@/components/chat/render-parts";
+import { ApprovalActionContext } from "@/components/chat/ApprovalCard";
 
 const convItems: NonNullable<ConversationsProps["items"]> = conversations.map(
   (c) => ({
@@ -48,6 +51,7 @@ function AIChat() {
     switchConversation,
     newConversation,
     deleteConversation,
+    decideApproval,
   } = useChatStream({
     initialMessages: [WELCOME_MESSAGE],
     userAvatar,
@@ -194,24 +198,28 @@ function AIChat() {
           </div>
 
           <div style={{ flex: 1, overflowY: "auto", padding: "20px 26px" }}>
-            <Bubble.List
-              items={messages}
-              role={{
-                assistant: {
-                  contentRender: (content) =>
-                    typeof content === "string" ? (
-                      <div className="md-body">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                          {content}
-                        </ReactMarkdown>
-                      </div>
-                    ) : (
-                      content
-                    ),
-                },
-              }}
-              styles={{ content: { fontSize: 13.5, lineHeight: 1.7 } }}
-            />
+            <ApprovalActionContext.Provider value={decideApproval}>
+              <Bubble.List
+                items={messages}
+                role={{
+                  assistant: {
+                    contentRender: (content) =>
+                      Array.isArray(content) ? (
+                        renderParts(content as MessagePart[])
+                      ) : typeof content === "string" ? (
+                        <div className="md-body">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {content}
+                          </ReactMarkdown>
+                        </div>
+                      ) : (
+                        content
+                      ),
+                  },
+                }}
+                styles={{ content: { fontSize: 13.5, lineHeight: 1.7 } }}
+              />
+            </ApprovalActionContext.Provider>
           </div>
 
           <div

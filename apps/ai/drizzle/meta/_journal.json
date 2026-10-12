@@ -15,6 +15,13 @@
       "when": 1789637718624,
       "tag": "0001_add_agent_key",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791610802955,
+      "tag": "0002_tired_piledriver",
+      "breakpoints": true
     }
   ]
 }

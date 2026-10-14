@@ -32,7 +32,35 @@ import {
 } from "@/api/mall";
 import dayjs from "dayjs";
 
+/** URL 筛选参数：AI 订单卡片跳转 / 手动分享链接时带入（orderNo 模糊、status、customerId）。
+ * 注意：TanStack Router 默认对 query 值 JSON.parse，?status=5 进来已是数字 5，需兼容 number/string */
+function parseOrderSearch(search: Record<string, unknown>): {
+  orderNo?: string;
+  status?: OrderStatus;
+  customerId?: string;
+} {
+  const orderNo =
+    typeof search.orderNo === "string" && search.orderNo
+      ? search.orderNo
+      : undefined;
+  const rawStatus =
+    typeof search.status === "number"
+      ? search.status
+      : typeof search.status === "string" && search.status !== ""
+        ? Number(search.status)
+        : NaN;
+  const status = Number.isFinite(rawStatus)
+    ? (rawStatus as OrderStatus)
+    : undefined;
+  const customerId =
+    typeof search.customerId === "string" && search.customerId
+      ? search.customerId
+      : undefined;
+  return { orderNo, status, customerId };
+}
+
 export const Route = createFileRoute("/_admin/orders")({
+  validateSearch: parseOrderSearch,
   component: Orders,
 });
 
@@ -73,10 +101,17 @@ const itemColumns: TableProps<OrderItemVO>["columns"] = [
 
 function Orders() {
   const queryClient = useQueryClient();
+  // URL 带筛选参数时（AI 卡片跳转）初始化筛选条件
+  const {
+    orderNo: urlOrderNo,
+    status: urlStatus,
+    customerId: urlCustomerId,
+  } = Route.useSearch();
   const [page, setPage] = useState(1);
   const [size, setSize] = useState(10);
-  const [search, setSearch] = useState("");
-  const [status, setStatus] = useState<OrderStatus | "">("");
+  const [search, setSearch] = useState(urlOrderNo ?? "");
+  const [status, setStatus] = useState<OrderStatus | "">(urlStatus ?? "");
+  const [customerId, setCustomerId] = useState(urlCustomerId ?? "");
   const [detailId, setDetailId] = useState<string | null>(null);
   // 申请售后：目标订单与表单状态
   const [asTarget, setAsTarget] = useState<OrderVO | null>(null);
@@ -113,8 +148,15 @@ function Orders() {
     onError: (e: Error) => message.error(e.message),
   });
   const { data } = useQuery({
-    queryKey: ["orders", page, size, search, status],
-    queryFn: () => pageOrders({ page, size, orderNo: search, status }),
+    queryKey: ["orders", page, size, search, status, customerId],
+    queryFn: () =>
+      pageOrders({
+        page,
+        size,
+        orderNo: search,
+        status,
+        customerId: customerId || undefined,
+      }),
   });
   const { data: detail, isLoading: detailLoading } = useQuery({
     queryKey: ["order", detailId],
@@ -317,6 +359,12 @@ function Orders() {
             onChange={(e) => setSearch(e.target.value)}
             style={{ width: 200 }}
           />
+          <Input
+            placeholder="客户 ID"
+            value={customerId}
+            onChange={(e) => setCustomerId(e.target.value)}
+            style={{ width: 180 }}
+          />
           <Select
             value={status}
             onChange={(e) => setStatus(e)}
@@ -324,7 +372,7 @@ function Orders() {
             options={[
               { value: "", label: "全部状态" },
               ...statusOptions.map((o) => ({
-                value: String(o.code),
+                value: o.code,
                 label: o.label,
               })),
             ]}

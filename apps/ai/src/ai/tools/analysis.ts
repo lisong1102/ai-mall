@@ -4,11 +4,11 @@ import { getWriter } from "@langchain/langgraph";
 
 /**
  * 季度对比：双通道原则演示
- * - getWriter().write() → 前端（custom 流）：全量结构化数据，不过模型
+ * - getWriter(config)(...) → 前端（custom 流）：全量结构化数据，不过模型
  * - return → 模型（ToolMessage）：结论摘要，模型没有明细，画不出重复表格
  */
 export const compareGrowth = tool(
-  async ({ metric }) => {
+  async ({ metric }, config) => {
     // TODO: 后续接 mall-api 真实统计接口；先用演示数据打通通道
     const data = {
       from: { label: "Q2", total: 100 },
@@ -22,8 +22,8 @@ export const compareGrowth = tool(
     };
     void metric;
 
-    // 通道 1：给前端
-    getWriter()?.write({
+    // 通道 1：给前端（getWriter 必须显式传工具的 config，否则拿不到 writer）
+    getWriter(config)?.({
       type: "component",
       name: "quarter_compare",
       props: data,

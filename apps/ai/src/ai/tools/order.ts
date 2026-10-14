@@ -1,6 +1,7 @@
 // src/ai/tools/order.ts
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
+import { getWriter } from "@langchain/langgraph";
 import type { RunnableConfig } from "@langchain/core/runnables";
 import { mallServerFetch } from "@/lib/mall-server";
 import { ORDER_STATUS, OrderVO, PageResult } from "@/type";
@@ -68,23 +69,17 @@ export const queryOrder = tool(
 );
 
 /**
- * 列出订单列表，可按状态/订单号过滤，带分页。
- * mall-api 是管理后台接口，订单的 customer_id 引用 Customer 表，
- * 与登录账号 AdminUser 无映射关系，故不按登录用户强制过滤——
- * AI 客服在此架构下是管理员视角，查全量订单符合现有信任模型。
+ * 统计符合条件的订单数量（双通道，参照 compare_growth）：
+ * - getWriter().write() → 前端（custom 流）：跳转卡片（总数 + 筛选条件 + 链接参数），不过模型
+ * - return → 模型（ToolMessage）：匹配条数摘要，模型拿不到明细，无法罗列订单
  */
 export const listOrders = tool(
-  async (
-    { customerId, status, orderNo, page = 1, size = 10 },
-    config?: RunnableConfig,
-  ) => {
+  async ({ customerId, status, orderNo }, config?: RunnableConfig) => {
     const { userToken } = getRuntime(config);
     if (!userToken) return NO_AUTH;
 
-    const params = new URLSearchParams({
-      page: String(page),
-      size: String(Math.min(size, 50)), // 上限 50，防止一次拉爆
-    });
+    // 只要 total，size=1 最小化传输（分页由前端订单页自己做）
+    const params = new URLSearchParams({ page: "1", size: "1" });
     if (customerId) params.set("customerId", customerId);
     if (orderNo) params.set("orderNo", orderNo);
     if (status !== undefined) params.set("status", String(status));
@@ -94,28 +89,39 @@ export const listOrders = tool(
       undefined,
       userToken,
     );
+    const total = result?.total ?? 0;
 
-    const records = result?.records ?? [];
-    if (!records.length) return "没有任何订单";
+    // 筛选条件描述（模型摘要 + 卡片展示共用）
+    const filters: string[] = [];
+    if (customerId) filters.push(`客户 ${customerId}`);
+    if (orderNo) filters.push(`订单号含 ${orderNo}`);
+    if (status !== undefined) filters.push(ORDER_STATUS[status] ?? "未知状态");
+    const filterDesc = filters.length ? `（${filters.join("、")}）` : "";
 
-    const summary = summarize(records);
-    return JSON.stringify({
-      total: result.total,
-      current: result.current,
-      size: result.size,
-      hasMore: result.current * result.size < result.total,
-      orders: summary,
+    // 通道 1：给前端 —— 跳转卡片
+    // 注意：getWriter 必须显式传入工具的 config——子图 invoke 链路中
+    // AsyncLocalStorage 上下文里没有 writer，无参调用会静默拿不到
+    getWriter(config)?.({
+      type: "component",
+      name: "order_list_summary",
+      props: { total, filterDesc, customerId, status, orderNo },
     });
+
+    // 通道 2：给模型
+    if (!total) {
+      return `没有符合条件的订单${filterDesc}。查询结果卡片已展示给用户，请直接告知用户没有匹配的订单。`;
+    }
+    return `共匹配到 ${total} 条订单${filterDesc}。订单明细已通过前端卡片展示，用户点击卡片即可跳转订单管理页查看完整列表。请简短告知用户匹配条数并引导点击卡片查看，不要罗列或编造具体订单信息。`;
   },
   {
     name: "list_orders",
     description:
-      "列出订单列表，可按状态或订单号关键字过滤，支持分页。状态码：0待付款 1已付款 2已发货 3已完成 4已取消 5退款中 6已退款。适合回答'有哪些订单'、'查已付款的订单'这类问题。",
+      "统计符合条件的订单数量，并在前端生成订单列表跳转卡片（不返回订单明细）。所有'查看订单列表'类问题都用它：查所有订单、某客户的全部订单、某状态的订单等。状态码：0待付款 1已付款 2已发货 3已完成 4已取消 5退款中 6已退款。",
     schema: z.object({
       customerId: z
         .string()
         .optional()
-        .describe("客户 ID，可选，不填则查询所有客户订单"),
+        .describe("客户 ID，可选，不填则统计所有客户订单"),
       status: z
         .number()
         .int()
@@ -129,21 +135,6 @@ export const listOrders = tool(
         .string()
         .optional()
         .describe("订单号关键字（ORD 开头），模糊匹配"),
-      page: z
-        .number()
-        .int()
-        .positive()
-        .optional()
-        .default(1)
-        .describe("页码，从 1 开始"),
-      size: z
-        .number()
-        .int()
-        .positive()
-        .max(50)
-        .optional()
-        .default(10)
-        .describe("每页条数，最大 50"),
     }),
   },
 );

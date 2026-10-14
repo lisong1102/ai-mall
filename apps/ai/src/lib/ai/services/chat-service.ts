@@ -70,6 +70,7 @@ type AgentStream = Awaited<
  * 消费 agent 流（stream / resume 共用），单次顺序遍历按 mode 分类 fold：
  * - messages → model_request 的 AI 文本 delta（pushText 连续文本合一段）+ delta 事件
  * - updates → __interrupt__ 审批请求 → approval part + approval 事件
+ * - custom → 工具写入的组件事件 → component part + component 事件
  * parts 由调用方传入、就地填充；结束后由调用方 persistAssistantParts 落库。
  */
 async function* consumeAgentStream(
@@ -99,7 +100,17 @@ async function* consumeAgentStream(
         yield { type: "approval", conversationId, approval: value };
       }
     } else if (mode === "custom") {
-      console.log(block, "uuuuu");
+      // 工具经 getWriter() 写入的自定义事件 → component part（前端注册表按 name 渲染）
+      const ev = payload as {
+        type?: string;
+        name?: string;
+        props?: Record<string, unknown>;
+      };
+      if (ev?.type === "component" && ev.name) {
+        const props = ev.props ?? {};
+        parts.push({ type: "component", name: ev.name, props });
+        yield { type: "component", conversationId, name: ev.name, props };
+      }
     }
   }
 }

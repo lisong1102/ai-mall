@@ -23,6 +23,8 @@ interface UseChatStreamOptions {
   userAvatar: ReactNode;
   /** AI 气泡头像 */
   aiAvatar: ReactNode;
+  /** 最大重试次数 */
+  maxRetries?: number;
 }
 
 /**
@@ -36,6 +38,7 @@ export function useChatStream({
   initialMessages,
   userAvatar,
   aiAvatar,
+  maxRetries = 3,
 }: UseChatStreamOptions) {
   const [messages, setMessages] = useState<BubbleItemType[]>(initialMessages);
   const [loading, setLoading] = useState(false);
@@ -47,6 +50,7 @@ export function useChatStream({
   const conversationIdRef = useRef<string | undefined>(undefined);
   const abortRef = useRef<AbortController | null>(null);
   const partsRef = useRef<MessagePart[]>([]); // 累积的 MessagePart 列表
+  const retryCountRef = useRef(0); // 当前重试次数
 
   /** 中断正在进行的请求（切会话/新建时调用，省 token） */
   const abortRequest = useCallback(() => {
@@ -249,47 +253,58 @@ export function useChatStream({
       abortRef.current = controller;
       resetParts();
 
-      try {
-        const token = getToken();
-        const res = await fetch("/api/ai/chat/stream", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({
-            message: trimmed,
-            conversationId: conversationIdRef.current,
-          }),
-          signal: controller.signal,
-        });
-        if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
-        await consumeStream(res, aiKey);
+      const run = async () => {
+        try {
+          const token = getToken();
+          const res = await fetch("/api/ai/chat/stream", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              message: trimmed,
+              conversationId: conversationIdRef.current,
+            }),
+            signal: controller.signal,
+          });
+          if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
+          await consumeStream(res, aiKey);
 
-        // 全程无内容（挂起轮至少有 approval part，不会走到这）
-        if (partsRef.current.length === 0) {
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.key === aiKey
-                ? { ...m, loading: false, content: "（没有返回内容）" }
-                : m,
-            ),
-          );
+          // 全程无内容（挂起轮至少有 approval part，不会走到这）
+          if (partsRef.current.length === 0) {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.key === aiKey
+                  ? { ...m, loading: false, content: "（没有返回内容）" }
+                  : m,
+              ),
+            );
+          }
+        } catch (e) {
+          const err = e as Error;
+          if (err.name === "AbortError") return;
+          retryCountRef.current++;
+          if (retryCountRef.current > maxRetries) {
+            retryCountRef.current = 0;
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.key === aiKey
+                  ? { ...m, loading: false, content: `⚠️ ${err.message}` }
+                  : m,
+              ),
+            );
+            return;
+          } else {
+            const delay = 1000 * 2 ** (retryCountRef.current - 1); // 指数退避
+            setTimeout(() => run(), delay);
+          }
+        } finally {
+          setLoading(false);
+          abortRef.current = null;
         }
-      } catch (e) {
-        const err = e as Error;
-        if (err.name === "AbortError") return;
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.key === aiKey
-              ? { ...m, loading: false, content: `⚠️ ${err.message}` }
-              : m,
-          ),
-        );
-      } finally {
-        setLoading(false);
-        abortRef.current = null;
-      }
+      };
+      await run();
     },
     [loading, userAvatar, aiAvatar, consumeStream, resetParts],
   );

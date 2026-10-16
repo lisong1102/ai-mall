@@ -47,6 +47,14 @@ services:
       POSTGRES_DB: ai_mall
       POSTGRES_USER: mall
       POSTGRES_PASSWORD: mall
+      # db.ts/checkpointer 启动时强校验，容器内走服务名 postgres
+      DATABASE_URL: postgresql://mall:mall@postgres:5432/ai_mall
+      # 必须与 mall-api 使用同一个 HS256 密钥，AI 服务才能校验后台签发的 JWT（auth.ts）
+      JWT_SECRET: ${JWT_SECRET:-ai-mall-prod-please-change-this-jwt-secret-0123456789}
+      # LLM/Embedding 密钥：生产在 .env 中提供；变量名与代码 process.env 读取严格一致（区分大小写）
+      Deepseek_API_KEY: ${Deepseek_API_KEY:-}
+      Kimi_API_KEY: ${Kimi_API_KEY:-}
+      SILICONFLOW_API_KEY: ${SILICONFLOW_API_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy

@@ -1,6 +1,11 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { conversations, messages } from "./schema";
+import {
+  conversations,
+  messages,
+  documents,
+  documentChunks,
+} from "./schema";
 
 /**
  * 数据库连接实例。
@@ -13,4 +18,6 @@ if (!connectionString) {
 }
 
 const client = postgres(connectionString);
-export const db = drizzle(client, { schema: { conversations, messages } });
+export const db = drizzle(client, {
+  schema: { conversations, messages, documents, documentChunks },
+});

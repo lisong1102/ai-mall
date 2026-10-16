@@ -218,6 +218,8 @@ export const chatService = {
           thread_id: conversationId,
           // 透传用户 JWT，LangChain 工具经 mallServerFetch 携带鉴权
           userToken: user.token,
+          // 透传 userId，知识库工具做用户文档隔离
+          userId: user.userId,
         },
       },
     );
@@ -263,7 +265,11 @@ export const chatService = {
     const stream = await graph.stream(new Command({ resume: decision }), {
       streamMode: ["messages", "custom", "updates"],
       signal,
-      configurable: { thread_id: conversationId, userToken: user.token },
+      configurable: {
+        thread_id: conversationId,
+        userToken: user.token,
+        userId: user.userId,
+      },
     });
 
     // 5. 消费流：fold parts + 透传事件；6. 原子落库（resume 可能再触发新 interrupt）

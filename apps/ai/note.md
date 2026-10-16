@@ -102,3 +102,58 @@ await db.delete(conversations).where(eq(conversations.id, id));
 - schema.ts 不能包含运行时副作用代码（如 `postgres()` 建连接），否则 drizzle-kit generate 会报错
 - ai service 只操作 `ai` schema，不访问 `mall` schema，跨 schema 数据走 HTTP 接口
 - `pgSchema("ai")` 确保表建在 ai schema 下，与 Java 侧物理隔离
+
+# 2. DrizzleVectorStore 检索 SQL（similaritySearchVectorWithScore）
+
+## 2.1 生成的 SQL
+
+`src/lib/ai/vector-store.ts` 的 `similaritySearchVectorWithScore` 最终生成一条 SQL：
+
+```sql
+SELECT "id", "content", "document_id", "sequence",
+       ("embedding" <=> $1::vector) AS "distance"
+FROM "ai"."document_chunks"
+WHERE "embedding" IS NOT NULL
+  AND "document_id" IN ($2, $3, ...)
+ORDER BY ("embedding" <=> $1::vector) ASC
+LIMIT $k;
+```
+
+不带 `documentIds` 过滤时去掉 `AND document_id IN (...)` 那行。
+
+## 2.2 逐点解释
+
+- **`$1::vector` 查询向量参数化**：`${queryVec}` 在 Drizzle `sql` 模板里是绑定参数（不是字符串拼接），生成 `$1`，再 `::vector` 显式转型成 pgvector 类型，无 SQL 注入风险
+- **`<=>` cosine 距离算子**：pgvector 三算子 `<=>`（cosine）/ `<->`（L2）/ `<#>`（负内积）；BGE 输出归一化向量，cosine 距离与点积等价且最稳，值域 0（完全同向）~ 2（完全反向），越小越相似
+- **`IS NOT NULL`**：embedding 列是 nullable，NULL 与向量做 `<=>` 会直接报错，先过滤
+- **`ORDER BY ... ASC` + `LIMIT k`**：cosine 距离升序取 top-k 最近邻
+- **`IN (...)`**：`documentIds` 走 Drizzle `inArray`，同样绑定参数
+
+## 2.3 distance 是计算列不是物理列
+
+```ts
+distance: distanceExpr.as("distance"),
+```
+
+`.as("distance")` 生成 SQL 的 `AS` 别名，表里没有这一列：
+
+```sql
+("embedding" <=> $1::vector) AS "distance"   -- 逐行实时计算
+```
+
+- 同理 `SELECT price * quantity AS total` 的 `total` 也不在表里，表数据不变
+- select 里的 `id`/`content`/`document_id`/`sequence` 是物理列直接读，`distance` 是每行用自己的 embedding 与查询向量现场算的临时值
+- Drizzle 按别名映射回 JS 字段，所以代码里 `Number(row.distance)` 能取到
+- 它同时承担投影（返回分数）和排序依据（`orderBy(distanceExpr)` 用同一表达式，PostgreSQL 也允许 `ORDER BY "distance"` 引用别名）
+
+## 2.4 已知限制：顺序扫描
+
+目前只有 `document_id` 的 btree 索引，embedding 列没建向量索引，查询走全表顺序扫描。学习项目数据量小够用；chunks 上万后需加 HNSW 索引：
+
+```sql
+CREATE INDEX ON ai.document_chunks
+USING hnsw (embedding vector_cosine_ops);
+```
+
+索引建在 embedding 物理列上，让"逐行算距离"退化成"先按索引找最近邻再算"。
+

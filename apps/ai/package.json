@@ -17,11 +17,14 @@
     "@langchain/langgraph": "^1.4.21",
     "@langchain/langgraph-checkpoint-postgres": "^1.0.5",
     "@langchain/openai": "^1.5.11",
+    "@langchain/textsplitters": "^1.0.2",
     "ai": "^7.0.93",
     "drizzle-orm": "^0.45.2",
     "jose": "^6.2.12",
     "langchain": "^1.5.10",
+    "mammoth": "^1.13.0",
     "next": "16.3.4",
+    "pdf-parse": "^2.4.5",
     "postgres": "^3.4.9",
     "react": "19.2.8",
     "react-dom": "19.2.8",
@@ -35,6 +38,7 @@
     "drizzle-kit": "^0.31.10",
     "eslint": "^9",
     "eslint-config-next": "16.3.4",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   },
   "packageManager": "pnpm@10.10.0"

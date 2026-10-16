@@ -1,0 +1,1 @@
+ALTER TABLE "ai"."documents" ADD COLUMN "file_path" text;

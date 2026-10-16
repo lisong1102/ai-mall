@@ -17,3 +17,18 @@ export {
   type ConversationItem,
   type ConversationMessage,
 } from "./conversation";
+
+export {
+  listDocuments,
+  uploadDocument,
+  getDocument,
+  deleteDocument,
+  downloadDocument,
+  documentDownloadUrl,
+  type KnowledgeDocument,
+  type DocumentListResult,
+  type DocumentDetail,
+  type DocumentChunkPreview,
+  type DocumentStatus,
+  type ListDocumentsParams,
+} from "./knowledge";

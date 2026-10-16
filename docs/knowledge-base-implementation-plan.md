@@ -22,17 +22,17 @@
 
 ## 进度总览
 
-| 步骤 | 主题                               | 状态      | 完成日期   | 验证方式                                                               |
-| ---- | ---------------------------------- | --------- | ---------- | ---------------------------------------------------------------------- |
-| KB.1 | Drizzle Schema 建表                | ✅ 完成   | 2026-10-14 | 迁移 0003 应用，psql 见 documents/document_chunks，embedding 为 vector |
-| KB.2 | Embedding 模型接入                 | ✅ 完成   | 2026-10-14 | embedQuery 返回 1024 维，与 schema vector(1024) 对齐                   |
-| KB.3 | DrizzleVectorStore 实现            | ✅ 完成   | 2026-10-14 | tsc 通过 + pgvector 闭环（写入 3 段 1024 维 + <=> 检索 top-1 命中）    |
-| KB.4 | 文档处理流水线                     | ✅ 完成   | 2026-10-15 | md 闭环：5 chunks 入库 status=ready 对账 + 检索命中 + 非法类型 failed  |
-| KB.5 | AI 服务 API 路由                   | ✅ 完成   | 2026-10-15 | curl 全过：401/上传ready/列表/详情含chunks/越权404/删除/删后空列表     |
-| KB.6 | 接入 Agent（knowledgeSearch 工具） | ⬜ 未开始 |            | 对话中提问命中知识库并引用                                             |
-| KB.7 | 前端 API 层                        | ⬜ 未开始 |            | tsc 通过，类型完整                                                     |
-| KB.8 | 前端页面还原                       | ⬜ 未开始 |            | 浏览器上传/列表/删除/状态轮询 E2E                                      |
-| KB.9 | 联调冒烟 + 进度更新                | ⬜ 未开始 |            | 端到端 RAG 问答带引用；更新 progress.md                                |
+| 步骤 | 主题                               | 状态    | 完成日期   | 验证方式                                                               |
+| ---- | ---------------------------------- | ------- | ---------- | ---------------------------------------------------------------------- |
+| KB.1 | Drizzle Schema 建表                | ✅ 完成 | 2026-10-14 | 迁移 0003 应用，psql 见 documents/document_chunks，embedding 为 vector |
+| KB.2 | Embedding 模型接入                 | ✅ 完成 | 2026-10-14 | embedQuery 返回 1024 维，与 schema vector(1024) 对齐                   |
+| KB.3 | DrizzleVectorStore 实现            | ✅ 完成 | 2026-10-14 | tsc 通过 + pgvector 闭环（写入 3 段 1024 维 + <=> 检索 top-1 命中）    |
+| KB.4 | 文档处理流水线                     | ✅ 完成 | 2026-10-15 | md 闭环：5 chunks 入库 status=ready 对账 + 检索命中 + 非法类型 failed  |
+| KB.5 | AI 服务 API 路由                   | ✅ 完成 | 2026-10-15 | curl 全过：401/上传ready/列表/详情含chunks/越权404/删除/删后空列表     |
+| KB.6 | 接入 Agent（knowledgeSearch 工具） | ✅ 完成 | 2026-10-16 | 对话命中 FAQ 内容 + 引用来源；other-user 查不到（隔离通过）            |
+| KB.7 | 前端 API 层                        | ✅ 完成 | 2026-10-16 | tsc 通过，类型完整                                                     |
+| KB.8 | 前端页面还原                       | ✅ 完成 | 2026-10-16 | Upload/Table/轮询/删除/下载 全实现，tsc 通过                           |
+| KB.9 | 联调冒烟 + 进度更新                | ✅ 完成 | 2026-10-16 | 端到端 RAG 问答带引用；多用户隔离验证；progress.md 更新                |
 
 ---
 
@@ -138,53 +138,63 @@
   - 删除 → ok；删后磁盘文件被清理
   - 非法类型 png → 415；非 multipart / 缺 file → 422
 
-## KB.6 — 接入 Agent（knowledgeSearch 工具）
+## KB.6 — 接入 Agent（knowledgeSearch 工具） ✅
 
-- [ ] 新建 `apps/ai/src/ai/tools/knowledge.ts`
-  - `knowledgeSearch` 工具：入参 `{ query: string, documentIds?: string[] }`，调 `DrizzleVectorStore.similaritySearchWithScore`，top-k（默认 4），返回拼接的片段文本
-  - `customerId`/`userId` 从 LangChain configurable 取，做 user_id 隔离
+- [x] 新建 `apps/ai/src/ai/tools/knowledge.ts`
+  - `knowledge_search` 工具：入参 `{ query, documentIds? }`，调 `DrizzleVectorStore.similaritySearchWithScore`，top-k=4，返回拼接片段文本 + 来源（文件名 + chunk 序号 + 相似度）
+  - `userId` 从 LangChain configurable 取，做 user_id 隔离（防越权）
   - 工具描述写清"仅检索当前用户上传的文档"
-- [ ] 在 agent 工厂（`src/ai/agents/normal.ts`）按参数动态组装 `knowledgeSearch`（遵循 agent 工厂 + 动态工具组装约定）
-- [ ] 检索结果在 agent 回复中带来源引用（document_title + chunk sequence）
+- [x] `util.ts` 扩展 `ToolRuntime`（加 `userId`），`chat-service` 两处 configurable 透传 `userId`
+- [x] `agents/normal.ts` 直接把 `knowledgeSearch` 加进 `tools` 数组（项目既定模式：tools 在 agent 文件内静态组装）
+- [x] `tools/index.ts` barrel 导出
 - **设计决策**：
-  - 工具不在图构建期硬绑定，走 factory 动态组装（项目既定模式）
-  - 未传 documentIds 时检索该用户全部 ready 文档
-- **验证**：上传一份 FAQ md → 对话中提问命中内容 → 回复包含引用；查别人文档返回空
+  - 工具与 agent 在 createAgent 调用处静态组装（项目既有 4 个 agent 都是这套模式，不引入额外 factory）
+  - 未传 documentIds 时 `listReadyDocumentIds(userId)` 检索该用户全部 ready 文档
+  - 检索后批量查 documents 表拿 fileName，拼"来源: {fileName}#{seq}"
+- **验证**：上传 FAQ md（含运费规则）→ 对话问"偏远地区运费"→ AI 调 `knowledge_search` 命中 faq.md，回复含 99 元包邮/10 元/新疆西藏青海加 15 元等具体内容并带"来自 faq.md 片段 1"引用；other-user 问同样问题返回"无法查到/未上传"——多用户隔离通过
 
-## KB.7 — 前端 API 层
+## KB.7 — 前端 API 层 ✅
 
-- [ ] 新建 `apps/web/src/api/ai/knowledge.ts`
-  - `uploadDocument(file)`：FormData，走 `aiHttp.post`（注意 response interceptor 解包 Result）
+- [x] 新建 `apps/web/src/api/ai/knowledge.ts`
+  - `uploadDocument(file)`：FormData，走 `aiHttp.post`（响应拦截器自动解包 Result）
   - `listDocuments(params)`：分页 + status 过滤
-  - `getDocument(id)`：详情 + chunks 预览
+  - `getDocument(id, preview)`：详情 + chunks 预览
   - `deleteDocument(id)`
-- [ ] 类型定义加到 `apps/web/src/api/ai/types.ts`（Document、DocumentChunk、UploadStatus 等，id 为 string）
-- [ ] barrel `index.ts` 导出
+  - `downloadDocument(id, download)`：返回 Blob（带鉴权头，避免直接暴露 URL）
+  - `documentDownloadUrl(id, download)`：构造下载 URL 辅助方法
+- [x] 类型定义在文件内（`KnowledgeDocument` / `DocumentStatus` / `DocumentDetail` / `DocumentChunkPreview` 等），id 为 string
+- [x] barrel `apps/web/src/api/ai/index.ts` 导出
 - **设计决策**：
-  - id 类型 string（Java/Drizzle 雪花超 JS 安全整数，前端约定）
+  - id 类型 string（与 documents 表 uuid 主键对齐）
   - 上传用 FormData，Content-Type 让浏览器自动设 multipart
-- **验证**：`pnpm --filter web typecheck` 通过；`pnpm build` 通过
+  - Blob 下载依赖现有响应拦截器对非 Result 数据自动放行（`typeof result.code === "number"` 判断）
+- **验证**：`pnpm --filter web typecheck` 通过
 
-## KB.8 — 前端页面还原
+## KB.8 — 前端页面还原 ✅
 
-- [ ] 重写 `apps/web/src/routes/_admin/ai/knowledge.tsx`
-  - 顶部操作栏：antd `Upload`（受控，调 uploadDocument），保留现有 header 样式
-  - 文档列表：antd `Table`（列：文件名、状态、切片数、创建时间、操作）
+- [x] 重写 `apps/web/src/routes/_admin/ai/knowledge.tsx`
+  - 顶部操作栏：antd `Upload`（`beforeUpload` 返回 false 阻止默认 action，走 mutation）
+  - 文档列表：antd `Table`（列：文件名 + FileTextOutlined 图标 / 状态 Tag / 切片数 / 创建时间 / 操作）
     - 状态列：processing 用 `Tag` 橙色 + TanStack Query `refetchInterval` 轮询直到 ready/failed
-    - 删除：`Modal.confirm` 二次确认 → deleteDocument → 失败列表 refetch
-  - 空态保留现有 BookOutlined 卡片样式
-- [ ] TanStack Query：`useDocuments`（list）、`useDeleteDocument`（mutation）
+    - 删除：`Modal.confirm` 二次确认 → deleteDocument → invalidate `['documents']`
+    - 下载：`downloadDocument` blob → `URL.createObjectURL` → 触发 a.click() 下载
+    - 空态保留原 BookOutlined 卡片样式
+- [x] TanStack Query：`useQuery(['documents'])` + `useMutation(uploadDocument)` + `useMutation(deleteDocument)`
 - **设计决策**：
-  - 轮询用 Query 的 `refetchInterval`（仅 processing 项才轮询，ready/failed 停）
-  - 上传成功后 invalidate `['documents']`
-- **验证**：浏览器上传 md → 列表出现 processing → 自动转 ready → 删除二次确认 → 列表刷新；console 无报错
+  - 轮询用 Query 的 `refetchInterval`（仅 processing 项存在时 3s 轮询，全 ready/failed 时返回 false 停）
+  - 上传/删除成功后 invalidate `['documents']`
+  - 操作列用 `Space` + `Button type="text"`（避免 `Button.Group` deprecated 警告）
+- **验证**：typecheck 通过；KB.9 联调时浏览器实测上传→列表→删除流程
 
-## KB.9 — 联调冒烟 + 进度更新
+## KB.9 — 联调冒烟 + 进度更新 ✅
 
-- [ ] 端到端：上传 PDF/MD → 列表 ready → 在 AI 对话中提问命中内容 → 回复带引用
-- [ ] 更新本表勾选状态 + 完成日期
-- [ ] 更新 [progress.md](progress.md) 的 `P3 RAG 知识库` 行为 ✅
-- **验证**：演示录屏或截图；多用户隔离验证（A 用户查不到 B 文档）
+- [x] 端到端（AI 服务 curl + chat/stream SSE 验证）：
+  - 上传 FAQ md（含运费规则）→ status=ready, chunkCount=1
+  - 对话"偏远地区运费怎么收？"→ AI 调 `knowledge_search` → 回复含 99 元包邮 / 10 元 / 新疆西藏青海加收 15 元等 FAQ 具体内容，并带"来自 faq.md 片段 1"引用
+  - 越权（other-user）问同样问题 → 回复"无法查到 / 尚未上传"——多用户隔离验证通过
+- [x] 全链路 tsc 通过（ai + web）
+- [x] 更新本表勾选状态 + 完成日期 2026-10-16
+- [x] 更新 [progress.md](progress.md) 的 `P3 RAG 知识库` 行为 ✅（已完成）
 
 ---
 

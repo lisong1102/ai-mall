@@ -166,6 +166,34 @@ export interface AfterSaleSaveReq {
   refundAmount?: number;
 }
 
+// ---------- 仪表盘 ----------
+export interface DashboardSummary {
+  /** 今日销售额（已付款/已发货/已完成订单） */
+  todaySales: number;
+  /** 昨日销售额（同口径，用于环比） */
+  yesterdaySales: number;
+  /** 今日订单数（当日创建，不限状态） */
+  todayOrders: number;
+  yesterdayOrders: number;
+  newCustomers: number;
+  yesterdayNewCustomers: number;
+  /** 待处理售后数（申请中） */
+  pendingAfterSales: number;
+}
+
+export interface DailySales {
+  /** 日期 yyyy-MM-dd */
+  date: string;
+  amount: number;
+  orderCount: number;
+}
+
+export interface CategoryShareItem {
+  categoryName: string;
+  amount: number;
+  quantity: number;
+}
+
 // ---------- 认证 ----------
 export interface AdminUser {
   /** 雪花 ID，字符串传输 */

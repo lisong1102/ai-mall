@@ -63,7 +63,7 @@ const menuItems: MenuItem[] = [
     children: [
       { key: "/ai/chat", icon: <RobotOutlined />, label: "AI 对话" },
       { key: "/ai/knowledge", icon: <BookOutlined />, label: "知识库" },
-      { key: "/ai/tools", icon: <ToolOutlined />, label: "智能工具" },
+      // { key: "/ai/tools", icon: <ToolOutlined />, label: "智能工具" },
     ],
   },
 ];

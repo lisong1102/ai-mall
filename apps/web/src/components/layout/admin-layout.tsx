@@ -15,7 +15,7 @@ const titleMap: Record<string, string> = {
   "/customers": "客户管理",
   "/ai/chat": "AI 工作台 · 对话",
   "/ai/knowledge": "AI 工作台 · 知识库",
-  "/ai/tools": "AI 工作台 · 智能工具",
+  // "/ai/tools": "AI 工作台 · 智能工具",
 };
 
 export default function AdminLayout() {

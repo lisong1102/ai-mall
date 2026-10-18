@@ -6,6 +6,8 @@ import AssistantHeader from "./assistant-header";
 import AssistantFooter from "./assistant-footer";
 import { WELCOME_MESSAGE, aiAvatar, userAvatar } from "../../chat/constants";
 import { useChatStream } from "@/hooks/use-chat-stream";
+import { renderParts } from "@/components/chat/render-parts";
+import { MessagePart } from "@/api/ai/chat";
 
 export default function AIAssistant() {
   const [input, setInput] = useState("");
@@ -51,7 +53,9 @@ export default function AIAssistant() {
           role={{
             assistant: {
               contentRender: (content) =>
-                typeof content === "string" ? (
+                Array.isArray(content) ? (
+                  renderParts(content as MessagePart[])
+                ) : typeof content === "string" ? (
                   <div className="md-body">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                       {content}

@@ -19,5 +19,11 @@ ENV NODE_ENV=production \
 # standalone 产物按 monorepo 结构输出：server.js 位于 apps/ai/ 下
 COPY --from=build /repo/apps/ai/.next/standalone ./
 COPY --from=build /repo/apps/ai/.next/static ./apps/ai/.next/static
+# 拷贝 Drizzle 迁移文件与配置，供启动时执行 migrate
+COPY --from=build /repo/apps/ai/drizzle ./apps/ai/drizzle
+COPY --from=build /repo/apps/ai/drizzle.config.ts ./apps/ai/drizzle.config.ts
+RUN npm install -g drizzle-kit@0.31.10
+# 启动脚本：先执行 Drizzle 迁移，再启动 Next.js 服务
+RUN printf '#!/bin/sh\nset -e\ncd /app/apps/ai\necho "[ai-service] running drizzle migrations..."\nDATABASE_URL="$DATABASE_URL" drizzle-kit migrate\ncd /app\necho "[ai-service] starting next.js server..."\nexec node apps/ai/server.js\n' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
 EXPOSE 3001
-CMD ["node", "apps/ai/server.js"]
+CMD ["/app/entrypoint.sh"]

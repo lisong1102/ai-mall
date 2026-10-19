@@ -1,4 +1,6 @@
-import { defineConfig } from "drizzle-kit";
+// 仅用类型导入：编译后不产生 require('drizzle-kit')，
+// 避免 Docker 镜像中全局安装的 drizzle-kit 无法被本文件解析
+import type { Config } from "drizzle-kit";
 
 /**
  * Drizzle Kit 配置：用于生成/执行 migration、introspect 数据库等。
@@ -7,11 +9,11 @@ import { defineConfig } from "drizzle-kit";
  * schema 指向用 pgSchema('ai') 定义表的文件，所有表落在 ai schema 下，
  * 与 Java 管理的 mall schema 物理隔离（同库不同 schema）。
  */
-export default defineConfig({
+export default {
   schema: "./src/lib/ai/schema.ts",
   out: "./drizzle",
   dialect: "postgresql",
   dbCredentials: {
     url: process.env.DATABASE_URL!,
   },
-});
+} satisfies Config;

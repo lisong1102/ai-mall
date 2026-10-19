@@ -16,6 +16,7 @@ import {
   RefundApprovalRequest,
 } from "@/type/message-part";
 import { getPendingInterrupt } from "@/ai/interrupt";
+import { ensureCheckpointerReady } from "@/ai/checkpointer";
 import { Command } from "@langchain/langgraph";
 
 /**
@@ -168,6 +169,9 @@ export const chatService = {
     user: ChatUser,
     signal?: AbortSignal,
   ): AsyncGenerator<ChatStreamEvent> {
+    // checkpointer 建表懒初始化（构建期不触发，首次请求时才连库）
+    await ensureCheckpointerReady();
+
     // ── 1. 解析 / 新建 conversation ───────────────────────
     // 会话id
     let conversationId: string;
@@ -244,6 +248,9 @@ export const chatService = {
   ): AsyncGenerator<ChatStreamEvent> {
     const conv = await getConversation(conversationId);
     if (!conv || conv.userId !== user.userId) throw new Error("会话不存在");
+
+    // checkpointer 建表懒初始化（构建期不触发，首次请求时才连库）
+    await ensureCheckpointerReady();
 
     // 2. 幂等闩：meta 翻转失败说明已被处理（双开标签页/重复点击）
     const ok = await resolveApprovalMeta(conversationId, decision);

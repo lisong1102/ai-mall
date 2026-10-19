@@ -3,12 +3,15 @@
 
 FROM node:22-alpine AS build
 WORKDIR /repo
+# corepack 下载 pnpm 也走 npm registry，国内服务器默认源极慢，提前切到 npmmirror
+ENV COREPACK_NPM_REGISTRY=https://registry.npmmirror.com
 RUN corepack enable
 # 仅拷贝依赖清单，利用镜像层缓存
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 COPY apps/web/package.json apps/web/
 COPY apps/ai/package.json apps/ai/
-RUN pnpm install --filter web --frozen-lockfile
+RUN pnpm config set registry https://registry.npmmirror.com \
+    && pnpm install --filter web --frozen-lockfile
 COPY apps/web apps/web
 RUN pnpm --filter web build
 

@@ -1,6 +1,6 @@
 import { useDeferredValue, useState } from "react";
 import { Modal, Select, Input, message } from "antd";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { createOrder, pageCustomers } from "@/api/mall";
 import type { OrderItemReq } from "@/api/mall";
@@ -23,6 +23,8 @@ export default function CheckoutModal({ open, onClose }: CheckoutModalProps) {
   const [keyword, setKeyword] = useState("");
   const deferredKeyword = useDeferredValue(keyword);
 
+  const queryClient = useQueryClient();
+
   // 远程搜索客户（防抖：依赖 deferredKeyword 变化触发）
   const { data: customerPage, isFetching } = useQuery({
     queryKey: ["customers", deferredKeyword],
@@ -43,7 +45,11 @@ export default function CheckoutModal({ open, onClose }: CheckoutModalProps) {
         price: c.price,
         quantity: c.quantity,
       }));
-      return createOrder({ customerId: customerId!, remark, items: orderItems });
+      return createOrder({
+        customerId: customerId!,
+        remark,
+        items: orderItems,
+      });
     },
     onSuccess: (id) => {
       message.success(`下单成功，订单 ID：${id}`);
@@ -53,6 +59,7 @@ export default function CheckoutModal({ open, onClose }: CheckoutModalProps) {
       setRemark("");
       setKeyword("");
       onClose();
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
       navigate({ to: "/orders" });
     },
     onError: (e: Error) => message.error(e.message),

@@ -42,6 +42,7 @@ export const initiateRefund = tool(
           customerId: order.customerId,
           reason,
           type,
+          refundAmount: order.totalAmount,
         }),
       },
       config?.configurable?.userToken,

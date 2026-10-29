@@ -10,7 +10,8 @@
     "build:web": "pnpm --filter web build",
     "build:ai": "pnpm --filter ai build",
     "db:up": "docker compose up -d postgres",
-    "db:down": "docker compose down"
+    "db:down": "docker compose down",
+    "deploy": "bash scripts/deploy.sh"
   },
   "devDependencies": {
     "concurrently": "^9.1.0"

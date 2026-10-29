@@ -350,12 +350,12 @@ Docker 用 OverlayFS 把镜像分成多个只读层，层与层叠加成完整�
 
 ### 10.1 为什么用服务名能互相访问
 
-docker-compose 自动为所有容器创建一个**内部网络**，并把每个容器的 `container_name` 注册为 DNS 记录。所以：
+docker-compose 自动为所有容器创建一个**内部网络**，并把每个容器的 `container_name`（同时也是 service 名）注册为 DNS 记录。所以：
 
 ```yaml
 environment:
-  POSTGRES_HOST: postgres # postgres = postgres 服务的 container_name
-  MALL_API_BASE: http://mall-api:8080 # mall-api = mall-api 服务的 container_name
+  POSTGRES_HOST: postgres # postgres = postgres 服务名，也是内部 DNS 名
+  MALL_API_BASE: http://mall-api:8080 # mall-api = mall-api 服务名
 ```
 
 nginx.conf 里也是一样：
@@ -367,7 +367,67 @@ proxy_pass http://ai-service:3001/api/;  # ai-service 是 DNS 名
 
 容器**不需要知道对方的 IP 地址**，改容器 IP 也不影响。
 
-### 10.2 哪些容器暴露端口
+### 10.2 Docker 内部网络做了什么
+
+Docker Compose 做了两件事：
+
+1. **创建虚拟局域网**：所有容器连到同一个 bridge 网络，各自分配内网 IP（如 `172.18.0.2`、`172.18.0.3`）
+2. **内置 DNS 服务器**：每个容器内置 DNS 解析器（`127.0.0.11`），把服务名解析成对应容器的内网 IP
+
+解析过程：
+
+```
+ai-service 发起请求 http://mall-api:8080
+    ↓
+容器内 DNS 解析器问 Docker："mall-api" 是谁？
+    ↓
+Docker 回答：mall-api = 172.18.0.3
+    ↓
+ai-service 直接连接 172.18.0.3:8080
+```
+
+本质和公网 DNS 一样（名字 → IP），但 Docker 的是**内部私有的**，只在同一网络内有效。
+
+### 10.3 容器 IP 是私有的，外部访问不到
+
+Docker 给容器分配的 IP 是 `172.18.x.x` 这类 **RFC 1918 私有地址**，只在服务器内部虚拟网络里有效，公网路由器会直接丢弃发往这些地址的包。
+
+```
+公网 (互联网)
+    │ 只能到达 39.107.89.142 (服务器公网IP)
+    ▼
+┌──────────────────────────────────────────────┐
+│  服务器 39.107.89.142                          │
+│                                                │
+│  Docker 虚拟网络 (172.18.0.0/16)              │
+│  ┌──────────┐  ┌──────────┐  ┌────────────┐  │
+│  │postgres  │  │mall-api  │  │ ai-service │  │
+│  │172.18.0.2│  │172.18.0.3│  │ 172.18.0.4 │  │
+│  └──────────┘  └──────────┘  └────────────┘  │
+│       ↑             ↑             ↑           │
+│       └─────────────┴─────────────┘           │
+│              内部互通（私有 IP）               │
+└──────────────────────────────────────────────┘
+```
+
+类比：就像家里 WiFi 给手机分配的 `192.168.1.100`，外面的人访问不到，必须通过路由器端口转发。
+
+### 10.4 两种访问路径对比
+
+容器之间互访和外部访问容器，是**两条完全不同的路径**：
+
+|             | 容器之间互访             | 外部访问容器              |
+| ----------- | ------------------------ | ------------------------- |
+| 地址示例    | `http://mall-api:8080`   | `http://39.107.89.142:80` |
+| 解析方式    | Docker 内部 DNS          | 公网 IP + 端口转发        |
+| 经过 DNS 吗 | ✅ 是                    | ❌ 否（直接转发）         |
+| 谁能访问    | 仅同一 Docker 网络的容器 | 任何人（端口开放时）      |
+
+**外部访问走的是端口转发（iptables），不是 DNS 解析。**
+
+`ports: - "80:80"` 的含义：把宿主机 80 端口收到的 TCP 流量，**直接转发**到 web 容器的 80 端口，纯网络层转发，不涉及 DNS。
+
+### 10.5 哪些容器暴露端口
 
 | 服务       | ports       | 对外可访问      |
 | ---------- | ----------- | --------------- |
@@ -378,13 +438,31 @@ proxy_pass http://ai-service:3001/api/;  # ai-service 是 DNS 名
 
 mall-api 和 ai-service 故意不暴露端口——这是"仅内网"约束的实现。外部访问只能通过 nginx 反向代理。
 
+### 10.6 如果给 ai-service 加 ports 会怎样
+
+```yaml
+ai-service:
+  ports:
+    - "3001:3001" # 加了这行
+```
+
+外部就能直接通过 `http://服务器IP:3001/api/chat` 访问 AI 服务。
+
+**但生产环境不建议这样做**，原因：
+
+- 统一入口走 nginx，方便路由、日志、限流
+- 减少攻击面，后端服务不直接暴露
+- nginx 已配置 `proxy_buffering off` 支持 SSE 流式响应
+
+只有临时调试时才加，用完删掉。
+
 ---
 
 ## 十一、环境变量传递
 
 compose 的 `environment` 字段把值注入到**容器进程**的环境变量里。
 
-### Java 服务读 PG 连接信息
+### 11.1 Java 服务读 PG 连接信息
 
 ```yaml
 mall-api:
@@ -398,7 +476,7 @@ mall-api:
 
 Java 应用通过 `System.getenv("POSTGRES_HOST")` 读取，或者 Spring Boot 自动绑定。
 
-### AI 服务调 Java
+### 11.2 AI 服务调 Java
 
 ```yaml
 ai-service:
@@ -410,6 +488,70 @@ ai-service:
 
 ```ts
 const BASE = process.env.MALL_API_BASE ?? "http://localhost:8080";
+```
+
+### 11.3 .env 文件与变量替换
+
+Docker Compose 会**自动读取** `docker-compose.yml` 同级目录下的 `.env` 文件，用里面的值替换 yml 中的 `${VAR}`。
+
+`.env` 示例：
+
+```bash
+JWT_SECRET=abc123xyz
+Deepseek_API_KEY=sk-xxx
+SILICONFLOW_API_KEY=sk-yyy
+```
+
+yml 中引用：
+
+```yaml
+ai-service:
+  environment:
+    JWT_SECRET: ${JWT_SECRET:-默认值} # .env 有值 → 用 .env 的值
+    Deepseek_API_KEY: ${Deepseek_API_KEY:-} # .env 没设 → 用空字符串
+```
+
+#### `${VAR:-默认值}` 语法
+
+| 写法                    | 含义                   |
+| ----------------------- | ---------------------- |
+| `${JWT_SECRET:-默认值}` | .env 没设 → 用"默认值" |
+| `${Deepseek_API_KEY:-}` | .env 没设 → 用空字符串 |
+| `${JWT_SECRET}`         | .env 没设 → 直接报错   |
+
+#### 完整数据流
+
+```
+.env 文件（项目根目录）
+    ↓ Docker Compose 自动读取
+变量替换（把 ${VAR} 替换成实际值）
+    ↓
+docker-compose.yml 的 environment: 段
+    ↓
+容器内部的环境变量（process.env / System.getenv）
+```
+
+> 注意：`.env` **不会注入到宿主机系统环境**，只在 Compose 解析 yml 时用于变量替换。容器内的环境变量来自替换后的 `environment:` 段。
+
+#### 哪些变量必须写进 .env
+
+看 yml 里哪些用了 `${...}`：
+
+| 变量                  | 用途                                      | 是否必填           |
+| --------------------- | ----------------------------------------- | ------------------ |
+| `JWT_SECRET`          | JWT 签名密钥，mall-api 和 ai-service 共享 | ✅ 必填            |
+| `JWT_EXPIRATION`      | token 有效期                              | ❌ 有默认值        |
+| `Deepseek_API_KEY`    | DeepSeek 对话模型                         | 至少填一个对话模型 |
+| `Kimi_API_KEY`        | Kimi 对话模型                             | 可选               |
+| `SILICONFLOW_API_KEY` | 硅基流动 Embedding                        | 知识库功能必填     |
+
+`POSTGRES_*`、`DATABASE_URL`、`MALL_API_BASE` 在 yml 中是硬编码的，不需要写进 `.env`。
+
+#### 验证替换结果
+
+```bash
+docker compose config | grep JWT_SECRET
+# 输出替换后的值
 ```
 
 ---
@@ -556,7 +698,121 @@ location /api/ai/ {
 
 ---
 
-## 十五、常用命令速查
+## 十五、国内服务器拉取镜像失败与离线导入
+
+### 15.1 现象
+
+在阿里云 ECS 上执行 `docker compose up -d --build`，构建阶段卡在 `load metadata` 30 秒后超时：
+
+```
+ => ERROR [web internal] load metadata for docker.io/library/nginx:1.27-alpine                 30.4s
+ => ERROR [mall-api internal] load metadata for docker.io/library/maven:3.9-eclipse-temurin-17 30.3s
+ => ERROR [mall-api internal] load metadata for docker.io/library/eclipse-temurin:17-jre       30.3s
+target mall-api: failed to solve: eclipse-temurin:17-jre:
+  failed to resolve source metadata for docker.io/library/eclipse-temurin:17-jre: not found
+```
+
+> 注意：这里的 `not found` **不是因为镜像不存在**，而是加速器/网络解析不到该 tag 时返回的错误。`node:22-alpine` 之所以没报错，只是因为它已经在服务器本机缓存里。
+
+### 15.2 本项目依赖的 5 个基础镜像
+
+| 镜像                             | 用途             | 出现在哪                        |
+| -------------------------------- | ---------------- | ------------------------------- |
+| `node:22-alpine`                 | web / ai 构建    | web、ai Dockerfile 第一阶段     |
+| `nginx:1.27-alpine`              | web 运行         | web Dockerfile 第二阶段         |
+| `maven:3.9-eclipse-temurin-17`   | mall-api 构建    | mall-api Dockerfile 第一阶段    |
+| `eclipse-temurin:17-jre`         | mall-api 运行    | mall-api Dockerfile 第二阶段    |
+| `pgvector/pgvector:pg16`         | PostgreSQL 数据库 | docker-compose.yml `postgres`  |
+
+### 15.3 原因
+
+- Docker Hub 在国内 ECS 上直连极慢或完全不可达，表现为 30s 连接超时
+- 公共镜像加速源（DaoCloud、1Panel、1ms 等）对 ECS 实例普遍**限流**，表现为间歇性 `not found`
+- `/etc/docker/daemon.json` 中镜像地址若被**反引号包裹**，会生成非法 URL，Docker 静默回退到直连 Docker Hub（实测约 9KB/s）
+
+### 15.4 先做两个廉价排查
+
+```bash
+uname -m                                        # 确认服务器架构，决定导出时用哪个 platform
+curl -I -m 5 https://registry-1.docker.io/v2/   # 确认能否直连 Docker Hub
+```
+
+### 15.5 解决方案：本地导出 + 服务器导入
+
+在线拉取不可靠时，把基础镜像在能联网的机器上导出，再传到服务器 `docker load` 导入，是 100% 可靠的兜底方案。
+
+**第一步：本地 Mac 拉取并打包**（`--platform` 必须与服务器架构一致）
+
+```bash
+mkdir -p ~/Downloads/ai-mall-images && cd ~/Downloads/ai-mall-images
+
+for img in node:22-alpine nginx:1.27-alpine maven:3.9-eclipse-temurin-17 eclipse-temurin:17-jre pgvector/pgvector:pg16; do
+  docker pull --platform linux/amd64 "$img"
+done
+
+docker save -o images.tar \
+  node:22-alpine \
+  nginx:1.27-alpine \
+  maven:3.9-eclipse-temurin-17 \
+  eclipse-temurin:17-jre \
+  pgvector/pgvector:pg16
+
+gzip images.tar    # 产出 images.tar.gz
+```
+
+**第二步：上传到服务器**
+
+```bash
+scp images.tar.gz root@<服务器IP>:/root/
+```
+
+**第三步：服务器导入**
+
+```bash
+gunzip -c /root/images.tar.gz | docker load    # 也可 docker load -i images.tar.gz
+docker images                                  # 确认 5 个镜像都已到位
+```
+
+**第四步：正常构建启动**
+
+```bash
+cd /opt/ai-mall
+docker compose up -d --build
+```
+
+### 15.6 关键点
+
+| 要点                        | 说明                                                                                                   |
+| --------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `--platform linux/amd64`    | Apple Silicon Mac 默认导出 arm64 镜像，x86_64 服务器跑不起来；显式指定后导出的才是服务器可用架构       |
+| `docker save/load` 保留 tag | 导入后的 `repo:tag` 与 Dockerfile 中 `FROM` 写的完全一致，构建时无需改动任何文件                       |
+| 只解决基础镜像              | 构建阶段内部的联网（pnpm→npmmirror、npm→npmmirror、maven→`settings.xml` 里的阿里云仓库）走的是国内源，不受 Docker Hub 影响，因此导入后构建能顺利跑完 |
+| 大文件传输                  | 压缩包通常 500–800MB；scp 慢可拆成单镜像分别传：`docker save -o node-22-alpine.tar node:22-alpine`     |
+
+### 15.7 镜像加速器配置（可选尝试）
+
+若仍想试在线方案，编辑 `/etc/docker/daemon.json`：
+
+```json
+{
+  "registry-mirrors": [
+    "https://<你的专属ID>.mirror.aliyuncs.com",
+    "https://docker.m.daocloud.io",
+    "https://docker.1panel.live"
+  ]
+}
+```
+
+```bash
+systemctl daemon-reload && systemctl restart docker
+docker info | grep -A5 "Registry Mirrors"    # 确认加速源已生效
+```
+
+> ⚠️ 地址**不要加反引号**，否则会生成非法 URL 导致静默失败。公共源的限流问题依然存在，能离线导入时优先走 15.5 的离线方案。
+
+---
+
+## 十六、常用命令速查
 
 ### 构建与启动
 

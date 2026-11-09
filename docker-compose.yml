@@ -55,6 +55,8 @@ services:
       Deepseek_API_KEY: ${Deepseek_API_KEY:-}
       Kimi_API_KEY: ${Kimi_API_KEY:-}
       SILICONFLOW_API_KEY: ${SILICONFLOW_API_KEY:-}
+    volumes:
+      - ai-uploads:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -75,3 +77,4 @@ services:
 
 volumes:
   pgdata:
+  ai-uploads:

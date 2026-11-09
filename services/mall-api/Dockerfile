@@ -13,5 +13,5 @@ RUN mvn -q -s .mvn/settings.xml -DskipTests package
 FROM eclipse-temurin:17-jre
 WORKDIR /app
 COPY --from=build /build/target/mall-api-*.jar app.jar
-EXPOSE 8080
+EXPOSE 8181
 ENTRYPOINT ["java", "-jar", "app.jar"]

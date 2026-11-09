@@ -16,10 +16,10 @@
                         ▼               ▼
               ┌──────────────┐   ┌──────────────┐
               │  mall-api    │   │  ai-service   │
-              │  Java :8080  │   │  Next :3001   │
+              │  Java :8181  │   │  Next :3001   │
               └──────┬───────┘   └──────┬───────┘
                      │                  │ MALL_API_BASE
-                     │                  │ http://mall-api:8080
+                     │                  │ http://mall-api:8181
                      └────────┬─────────┘
                               ▼
                       ┌──────────────┐
@@ -95,7 +95,7 @@ RUN mvn -q -s .mvn/settings.xml -DskipTests package     # 编译打 jar
 FROM eclipse-temurin:17-jre                   # 第二阶段：只装 JRE，抛弃第一阶段
 WORKDIR /app
 COPY --from=build /build/target/mall-api-*.jar app.jar  # 从第一阶段拷产物
-EXPOSE 8080
+EXPOSE 8181
 ENTRYPOINT ["java", "-jar", "app.jar"]        # run 时执行的命令
 ```
 
@@ -355,13 +355,13 @@ docker-compose 自动为所有容器创建一个**内部网络**，并把每个�
 ```yaml
 environment:
   POSTGRES_HOST: postgres # postgres = postgres 服务名，也是内部 DNS 名
-  MALL_API_BASE: http://mall-api:8080 # mall-api = mall-api 服务名
+  MALL_API_BASE: http://mall-api:8181 # mall-api = mall-api 服务名
 ```
 
 nginx.conf 里也是一样：
 
 ```nginx
-proxy_pass http://mall-api:8080/api/;    # mall-api 是 DNS 名
+proxy_pass http://mall-api:8181/api/;    # mall-api 是 DNS 名
 proxy_pass http://ai-service:3001/api/;  # ai-service 是 DNS 名
 ```
 
@@ -377,13 +377,13 @@ Docker Compose 做了两件事：
 解析过程：
 
 ```
-ai-service 发起请求 http://mall-api:8080
+ai-service 发起请求 http://mall-api:8181
     ↓
 容器内 DNS 解析器问 Docker："mall-api" 是谁？
     ↓
 Docker 回答：mall-api = 172.18.0.3
     ↓
-ai-service 直接连接 172.18.0.3:8080
+ai-service 直接连接 172.18.0.3:8181
 ```
 
 本质和公网 DNS 一样（名字 → IP），但 Docker 的是**内部私有的**，只在同一网络内有效。
@@ -418,7 +418,7 @@ Docker 给容器分配的 IP 是 `172.18.x.x` 这类 **RFC 1918 私有地址**�
 
 |             | 容器之间互访             | 外部访问容器              |
 | ----------- | ------------------------ | ------------------------- |
-| 地址示例    | `http://mall-api:8080`   | `http://39.107.89.142:80` |
+| 地址示例    | `http://mall-api:8181`   | `http://39.107.89.142:80` |
 | 解析方式    | Docker 内部 DNS          | 公网 IP + 端口转发        |
 | 经过 DNS 吗 | ✅ 是                    | ❌ 否（直接转发）         |
 | 谁能访问    | 仅同一 Docker 网络的容器 | 任何人（端口开放时）      |
@@ -481,13 +481,13 @@ Java 应用通过 `System.getenv("POSTGRES_HOST")` 读取，或者 Spring Boot �
 ```yaml
 ai-service:
   environment:
-    MALL_API_BASE: http://mall-api:8080
+    MALL_API_BASE: http://mall-api:8181
 ```
 
 对应 [apps/ai/src/lib/mall-server.ts](apps/ai/src/lib/mall-server.ts)：
 
 ```ts
-const BASE = process.env.MALL_API_BASE ?? "http://localhost:8080";
+const BASE = process.env.MALL_API_BASE ?? "http://localhost:8181";
 ```
 
 ### 11.3 .env 文件与变量替换
@@ -656,7 +656,7 @@ location / {
 
 # 2. mall-api 反向代理（路径重写 /api/mall → /api）
 location /api/mall/ {
-    proxy_pass http://mall-api:8080/api/;
+    proxy_pass http://mall-api:8181/api/;
 }
 
 # 3. ai-service 反向代理（流式响应关键配置）
@@ -674,8 +674,8 @@ location /api/ai/ {
 ```
 请求: /api/mall/products
   → location /api/mall/ 匹配
-  → proxy_pass http://mall-api:8080/api/
-  → 重写为: http://mall-api:8080/api/products  ✅
+  → proxy_pass http://mall-api:8181/api/
+  → 重写为: http://mall-api:8181/api/products  ✅
 
 请求: /api/ai/chat
   → location /api/ai/ 匹配
@@ -716,13 +716,13 @@ target mall-api: failed to solve: eclipse-temurin:17-jre:
 
 ### 15.2 本项目依赖的 5 个基础镜像
 
-| 镜像                             | 用途             | 出现在哪                        |
-| -------------------------------- | ---------------- | ------------------------------- |
-| `node:22-alpine`                 | web / ai 构建    | web、ai Dockerfile 第一阶段     |
-| `nginx:1.27-alpine`              | web 运行         | web Dockerfile 第二阶段         |
-| `maven:3.9-eclipse-temurin-17`   | mall-api 构建    | mall-api Dockerfile 第一阶段    |
-| `eclipse-temurin:17-jre`         | mall-api 运行    | mall-api Dockerfile 第二阶段    |
-| `pgvector/pgvector:pg16`         | PostgreSQL 数据库 | docker-compose.yml `postgres`  |
+| 镜像                           | 用途              | 出现在哪                      |
+| ------------------------------ | ----------------- | ----------------------------- |
+| `node:22-alpine`               | web / ai 构建     | web、ai Dockerfile 第一阶段   |
+| `nginx:1.27-alpine`            | web 运行          | web Dockerfile 第二阶段       |
+| `maven:3.9-eclipse-temurin-17` | mall-api 构建     | mall-api Dockerfile 第一阶段  |
+| `eclipse-temurin:17-jre`       | mall-api 运行     | mall-api Dockerfile 第二阶段  |
+| `pgvector/pgvector:pg16`       | PostgreSQL 数据库 | docker-compose.yml `postgres` |
 
 ### 15.3 原因
 
@@ -782,12 +782,12 @@ docker compose up -d --build
 
 ### 15.6 关键点
 
-| 要点                        | 说明                                                                                                   |
-| --------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `--platform linux/amd64`    | Apple Silicon Mac 默认导出 arm64 镜像，x86_64 服务器跑不起来；显式指定后导出的才是服务器可用架构       |
-| `docker save/load` 保留 tag | 导入后的 `repo:tag` 与 Dockerfile 中 `FROM` 写的完全一致，构建时无需改动任何文件                       |
+| 要点                        | 说明                                                                                                                                                 |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--platform linux/amd64`    | Apple Silicon Mac 默认导出 arm64 镜像，x86_64 服务器跑不起来；显式指定后导出的才是服务器可用架构                                                     |
+| `docker save/load` 保留 tag | 导入后的 `repo:tag` 与 Dockerfile 中 `FROM` 写的完全一致，构建时无需改动任何文件                                                                     |
 | 只解决基础镜像              | 构建阶段内部的联网（pnpm→npmmirror、npm→npmmirror、maven→`settings.xml` 里的阿里云仓库）走的是国内源，不受 Docker Hub 影响，因此导入后构建能顺利跑完 |
-| 大文件传输                  | 压缩包通常 500–800MB；scp 慢可拆成单镜像分别传：`docker save -o node-22-alpine.tar node:22-alpine`     |
+| 大文件传输                  | 压缩包通常 500–800MB；scp 慢可拆成单镜像分别传：`docker save -o node-22-alpine.tar node:22-alpine`                                                   |
 
 ### 15.7 镜像加速器配置（可选尝试）
 

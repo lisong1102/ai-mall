@@ -5,7 +5,7 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 // 开发期入口层：与线上 nginx 保持同一路径约定
-//   /api/mall/** → Java mall-api :8080（重写为 /api/**）
+//   /api/mall/** → Java mall-api :8181（重写为 /api/**）
 //   /api/ai/**   → Next AI 服务 :3001（重写为 /api/**）
 export default defineConfig({
   plugins: [
@@ -20,7 +20,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       "/api/mall": {
-        target: "http://localhost:8080",
+        target: "http://localhost:8181",
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/api\/mall/, "/api"),
       },

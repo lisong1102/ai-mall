@@ -28,14 +28,14 @@
 | 服务         | 镜像                          | 端口 | 说明                                    |
 | ------------ | ----------------------------- | ---- | --------------------------------------- |
 | `postgres`   | `pgvector/pgvector:pg16`      | 5432 | 数据库，含 pgvector 扩展                |
-| `mall-api`   | 自建（Java 17 + Spring Boot） | 8080 | 商城业务服务，Flyway 自动迁移           |
+| `mall-api`   | 自建（Java 17 + Spring Boot） | 8181 | 商城业务服务，Flyway 自动迁移           |
 | `ai-service` | 自建（Next.js 16 standalone） | 3001 | AI 服务，Drizzle 自动迁移               |
 | `web`        | 自建（nginx）                 | 80   | 前端静态资源 + 反向代理（唯一对外端口） |
 
 入口层路径约定（与开发环境 Vite proxy 一致）：
 
 - `/` → 前端 SPA（history 路由回退 index.html）
-- `/api/mall/**` → mall-api:8080（重写为 `/api/**`）
+- `/api/mall/**` → mall-api:8181 `/api/**`）
 - `/api/ai/**` → ai-service:3001（重写为 `/api/**`，关闭缓冲支持 SSE 流式）
 
 数据库 Schema 划分：

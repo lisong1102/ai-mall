@@ -40,8 +40,8 @@ springdoc:
 
 启动后可访问：
 
-- **接口文档界面**：http://localhost:8080/swagger-ui.html （可在页面上填参数、发请求测试）
-- **OpenAPI 原始 JSON**：http://localhost:8080/v3/api-docs （可导入 Apifox/Postman）
+- **接口文档界面**：http://localhost:8181/swagger-ui.html （可在页面上填参数、发请求测试）
+- **OpenAPI 原始 JSON**：http://localhost:8181/v3/api-docs （可导入 Apifox/Postman）
 
 核心价值：接口文档随代码自动生成、永远与代码同步，无需手写维护。
 

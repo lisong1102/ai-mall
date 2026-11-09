@@ -91,7 +91,7 @@
 ```bash
 docker compose up -d postgres   # 仅启动数据库（本地开发）
 docker compose up -d --build    # 全栈容器化：postgres + mall-api + ai-service + web(nginx :80)
-pnpm dev                        # 同时拉起 Vite(5173)、Next AI(3001)、Spring Boot(8080)
+pnpm dev                        # 同时拉起 Vite(5173)、Next AI(3001)、Spring Boot(8181)
 pnpm --filter web build         # 构建前端（Vite）
 pnpm --filter ai build          # 构建 AI 服务（Next standalone）
 cd services/mall-api && ./mvnw spring-boot:run   # 单独起 Java

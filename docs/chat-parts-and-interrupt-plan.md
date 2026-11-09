@@ -3,6 +3,7 @@
 > 状态：方案已评审定稿，待实施。本文档按步骤拆分，每步附代码与命令，按顺序独立实施。
 >
 > 前置讨论结论（不再重复论证）：
+>
 > 1. 三类内容（纯文本 / 审批卡片 / 自定义组件）统一为 **content = parts 数组**（jsonb），单一事实来源
 > 2. SSE 协议升级为 **discriminated union**：`{type: "delta" | "component" | "approval" | "error"}`
 > 3. 中断用 LangGraph `interrupt()`（挂起靠 checkpoint，不能用工具 return 模拟）
@@ -13,12 +14,12 @@
 
 ## 一、目标映射
 
-| 需求 | 实现机制 |
-|------|---------|
-| 1. 用户可中断，前端要展示 | refundAgent 中间件 `interrupt()` → SSE `approval` 帧 → 前端 ApprovalCard → `POST /api/chat/resume` 恢复 |
-| 2. 自定义 UI 对话，前端要展示 | 工具内 `getWriter().write({type:"component",...})` → SSE `component` 帧 → 前端组件注册表 |
-| 3. 普通对话 markdown 展示 | text part 走 ReactMarkdown，与现有逻辑一致 |
-| 4. content 存 parts 数组 | `ai.messages.content` text → jsonb（`MessagePart[]`）+ 新增 `meta` jsonb |
+| 需求                          | 实现机制                                                                                                |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------- |
+| 1. 用户可中断，前端要展示     | refundAgent 中间件 `interrupt()` → SSE `approval` 帧 → 前端 ApprovalCard → `POST /api/chat/resume` 恢复 |
+| 2. 自定义 UI 对话，前端要展示 | 工具内 `getWriter().write({type:"component",...})` → SSE `component` 帧 → 前端组件注册表                |
+| 3. 普通对话 markdown 展示     | text part 走 ReactMarkdown，与现有逻辑一致                                                              |
+| 4. content 存 parts 数组      | `ai.messages.content` text → jsonb（`MessagePart[]`）+ 新增 `meta` jsonb                                |
 
 ## 二、总体数据流
 
@@ -40,12 +41,12 @@
 
 **消息表时间线**（以退单审批为例）：
 
-| 时机 | role | content (jsonb parts) | meta |
-|------|------|----------------------|------|
-| 用户提问 | user | `[{type:"text",text:"帮我退掉 ORD888"}]` | — |
+| 时机     | role      | content (jsonb parts)                                                             | meta                              |
+| -------- | --------- | --------------------------------------------------------------------------------- | --------------------------------- |
+| 用户提问 | user      | `[{type:"text",text:"帮我退掉 ORD888"}]`                                          | —                                 |
 | 中断挂起 | assistant | `[{type:"text",text:"好的…"},{type:"approval",approval:{orderNo,amount,reason}}]` | `{approval:{status:"pending",…}}` |
-| 审批后 | user | `[{type:"text",text:"【审批】同意退款"}]` | — |
-| 审批后 | assistant | `[{type:"text",text:"退款已提交…"}]`（流式） | — |
+| 审批后   | user      | `[{type:"text",text:"【审批】同意退款"}]`                                         | —                                 |
+| 审批后   | assistant | `[{type:"text",text:"退款已提交…"}]`（流式）                                      | —                                 |
 
 挂起那条消息的 meta 由 `pending` 翻转为 `resolved`（唯一一次回写，卡片从可操作变为结果标签）。
 
@@ -103,8 +104,17 @@ export function textContentOf(parts: MessagePart[]): string {
 /** SSE 流事件协议（http.ts sseResponse 逐帧 JSON 序列化） */
 export type ChatStreamEvent =
   | { type: "delta"; conversationId: string; delta: string }
-  | { type: "component"; conversationId: string; name: string; props: Record<string, unknown> }
-  | { type: "approval"; conversationId: string; approval: RefundApprovalRequest }
+  | {
+      type: "component";
+      conversationId: string;
+      name: string;
+      props: Record<string, unknown>;
+    }
+  | {
+      type: "approval";
+      conversationId: string;
+      approval: RefundApprovalRequest;
+    }
   | { type: "error"; conversationId: string; error: string };
 ```
 
@@ -117,7 +127,14 @@ export type ChatStreamEvent =
 **文件**：`apps/ai/src/lib/ai/schema.ts`（messages 表定义在 L45-59）
 
 ```ts
-import { pgSchema, uuid, text, timestamp, index, jsonb } from "drizzle-orm/pg-core";
+import {
+  pgSchema,
+  uuid,
+  text,
+  timestamp,
+  index,
+  jsonb,
+} from "drizzle-orm/pg-core";
 
 export const messages = ai.table(
   "messages",
@@ -252,6 +269,7 @@ return rows
 **文件**：`apps/ai/src/ai/agents/refundAgent.ts`（整体替换中间件与 createAgent 配置）
 
 关键点：
+
 1. **金额以服务端查单为准**（模型入参不可信，工具 schema 里也没有可靠金额）
 2. `interrupt()` 挂起；恢复后从返回值拿决策；拒绝转 error ToolMessage
 3. **`checkpointer: true`**：子 agent 继承父图 PostgresSaver。没有它 interrupt 无法断点续传——父图 resume 时重跑 `refund` 节点的 `agent.invoke`，靠子 agent 自己的 checkpoint 跳回 tools 节点继续，而不是重跑整个对话
@@ -274,7 +292,9 @@ const refundApprovalMiddleware = createMiddleware({
 
     // 服务端查单金额（模型给的金额不可信）
     const orderNo = (request.toolCall.args as { orderId: string }).orderId;
-    const userToken = request.runtime?.configurable?.userToken as string | undefined;
+    const userToken = request.runtime?.configurable?.userToken as
+      | string
+      | undefined;
     let amount = 0;
     try {
       const data = await mallServerFetch<PageResult<OrderVO>>(
@@ -322,6 +342,7 @@ export const refundAgent = createAgent({
 ```
 
 **验证点**：
+
 - `request.runtime?.configurable?.userToken` 是否取到（先 `console.log(request)` 确认 runtime 结构；若 undefined，检查 langchain 版本的 MiddlewareRequest 字段名）
 - 查不到订单金额时走审批分支（上面已按保守处理）
 
@@ -556,6 +577,7 @@ async *resume(
 > 可选重构：5.5 的循环与 5.3 重复，可抽成 `private async *foldStream(stream, conversationId, parts)` 共用。
 
 **验证点**：
+
 - `graph.getState()` 能否读到嵌套子 agent 冒泡上来的 interrupt（父图 `state.tasks[].interrupts`）——Step 4 的 `checkpointer: true` 是前提
 - resume 只重放 tools 节点：观察 resume 时模型不会重新输出审批前的文本
 
@@ -633,14 +655,19 @@ export const compareGrowth = tool(
     void metric;
 
     // 通道 1：给前端
-    getWriter()?.write({ type: "component", name: "quarter_compare", props: data });
+    getWriter()?.write({
+      type: "component",
+      name: "quarter_compare",
+      props: data,
+    });
 
     // 通道 2：给模型
     return `季度对比图表已生成：${data.from.label} ${data.from.total} 万 → ${data.to.label} ${data.to.total} 万，环比 +${data.growth}%。请结合图表做简要解读，不要罗列明细数据。`;
   },
   {
     name: "compare_growth",
-    description: "对比两个季度的经营指标并生成前端图表。用户询问季度环比、增长对比时使用。",
+    description:
+      "对比两个季度的经营指标并生成前端图表。用户询问季度环比、增长对比时使用。",
     schema: z.object({
       metric: z.string().optional().describe("指标名，如销售额；默认销售额"),
     }),
@@ -712,8 +739,8 @@ import type { MessagePart, ApprovalMeta } from "./chat";
 export interface ConversationMessage {
   id: string;
   role: "user" | "assistant";
-  content: MessagePart[];                       // jsonb 数组
-  meta?: { approval?: ApprovalMeta } | null;    // 新增
+  content: MessagePart[]; // jsonb 数组
+  meta?: { approval?: ApprovalMeta } | null; // 新增
   createdAt: string;
 }
 ```
@@ -728,7 +755,13 @@ export interface ConversationMessage {
 
 ```ts
 import type { BubbleItemType } from "@ant-design/x";
-import type { ChatStreamEvent, MessagePart, ApprovalMeta, RefundApprovalDecision, RefundApprovalRequest } from "@/api/ai/chat";
+import type {
+  ChatStreamEvent,
+  MessagePart,
+  ApprovalMeta,
+  RefundApprovalDecision,
+  RefundApprovalRequest,
+} from "@/api/ai/chat";
 
 // hook 内新增：
 const partsRef = useRef<MessagePart[]>([]);
@@ -737,102 +770,156 @@ const partsRef = useRef<MessagePart[]>([]);
 const flushParts = useCallback((aiKey: string) => {
   const snapshot = [...partsRef.current];
   setMessages((prev) =>
-    prev.map((m) => (m.key === aiKey ? { ...m, loading: false, content: snapshot } : m)),
+    prev.map((m) =>
+      m.key === aiKey ? { ...m, loading: false, content: snapshot } : m,
+    ),
   );
 }, []);
 
 /** 重置累积器（新气泡开始前调用） */
-const resetParts = useCallback(() => { partsRef.current = []; }, []);
+const resetParts = useCallback(() => {
+  partsRef.current = [];
+}, []);
 ```
 
 **9.2 抽取 consumeStream（sendMessage 与 decideApproval 共用）**
 
 ```ts
 /** 消费一条 SSE 响应：解析事件帧 → fold 进 partsRef → 刷新气泡 */
-const consumeStream = useCallback(async (res: Response, aiKey: string) => {
-  await readSse(res.body, (data) => {
-    const ev = data as ChatStreamEvent;
-    if (ev.error) throw new Error(ev.error);          // 兼容 sseResponse 异常帧（无 type）
-    if (ev.type === "error") throw new Error(ev.error ?? "未知错误");
+const consumeStream = useCallback(
+  async (res: Response, aiKey: string) => {
+    await readSse(res.body, (data) => {
+      const ev = data as ChatStreamEvent;
+      if (ev.error) throw new Error(ev.error); // 兼容 sseResponse 异常帧（无 type）
+      if (ev.type === "error") throw new Error(ev.error ?? "未知错误");
 
-    if (ev.conversationId) {
-      if (ev.conversationId !== conversationIdRef.current && !conversationIdRef.current) {
-        queryClient.invalidateQueries({ queryKey: ["conversations"] });
-      }
-      conversationIdRef.current = ev.conversationId;
-      setConversationId(ev.conversationId);
-    }
-
-    switch (ev.type) {
-      case "delta": {
-        const parts = partsRef.current;
-        const last = parts[parts.length - 1];
-        if (last?.type === "text") {
-          parts[parts.length - 1] = { type: "text", text: last.text + (ev.delta ?? "") };
-        } else {
-          parts.push({ type: "text", text: ev.delta ?? "" });
+      if (ev.conversationId) {
+        if (
+          ev.conversationId !== conversationIdRef.current &&
+          !conversationIdRef.current
+        ) {
+          queryClient.invalidateQueries({ queryKey: ["conversations"] });
         }
-        flushParts(aiKey);
-        break;
+        conversationIdRef.current = ev.conversationId;
+        setConversationId(ev.conversationId);
       }
-      case "component":
-        partsRef.current.push({ type: "component", name: ev.name!, props: ev.props ?? {} });
-        flushParts(aiKey);
-        break;
-      case "approval":
-        partsRef.current.push({ type: "approval", approval: { ...ev.approval!, status: "pending" } });
-        flushParts(aiKey);
-        break;
-      default:
-        break;
-    }
-  });
-}, [flushParts, queryClient]);
+
+      switch (ev.type) {
+        case "delta": {
+          const parts = partsRef.current;
+          const last = parts[parts.length - 1];
+          if (last?.type === "text") {
+            parts[parts.length - 1] = {
+              type: "text",
+              text: last.text + (ev.delta ?? ""),
+            };
+          } else {
+            parts.push({ type: "text", text: ev.delta ?? "" });
+          }
+          flushParts(aiKey);
+          break;
+        }
+        case "component":
+          partsRef.current.push({
+            type: "component",
+            name: ev.name!,
+            props: ev.props ?? {},
+          });
+          flushParts(aiKey);
+          break;
+        case "approval":
+          partsRef.current.push({
+            type: "approval",
+            approval: { ...ev.approval!, status: "pending" },
+          });
+          flushParts(aiKey);
+          break;
+        default:
+          break;
+      }
+    });
+  },
+  [flushParts, queryClient],
+);
 ```
 
 **9.3 sendMessage 改造**（替换 L118-234 的 fetch + readSse 段）
 
 ```ts
-const sendMessage = useCallback(async (text: string) => {
-  const trimmed = text.trim();
-  if (!trimmed || loading) return;
-  setLoading(true);
+const sendMessage = useCallback(
+  async (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed || loading) return;
+    setLoading(true);
 
-  const aiKey = `a-${Date.now()}`;
-  setMessages((prev) => [
-    ...prev,
-    { key: `u-${Date.now()}`, role: "user", placement: "end", avatar: userAvatar, content: trimmed },
-    { key: aiKey, role: "assistant", placement: "start", avatar: aiAvatar, loading: true, content: [] },
-  ]);
+    const aiKey = `a-${Date.now()}`;
+    setMessages((prev) => [
+      ...prev,
+      {
+        key: `u-${Date.now()}`,
+        role: "user",
+        placement: "end",
+        avatar: userAvatar,
+        content: trimmed,
+      },
+      {
+        key: aiKey,
+        role: "assistant",
+        placement: "start",
+        avatar: aiAvatar,
+        loading: true,
+        content: [],
+      },
+    ]);
 
-  const controller = new AbortController();
-  abortRef.current = controller;
-  resetParts();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    resetParts();
 
-  try {
-    const token = getToken();
-    const res = await fetch("/api/ai/chat/stream", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      body: JSON.stringify({ message: trimmed, conversationId: conversationIdRef.current }),
-      signal: controller.signal,
-    });
-    if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
-    await consumeStream(res, aiKey);
+    try {
+      const token = getToken();
+      const res = await fetch("/api/ai/chat/stream", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          message: trimmed,
+          conversationId: conversationIdRef.current,
+        }),
+        signal: controller.signal,
+      });
+      if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
+      await consumeStream(res, aiKey);
 
-    // 全程无内容（挂起轮至少有 approval part，不会走到这）
-    if (partsRef.current.length === 0) {
-      setMessages((prev) => prev.map((m) => (m.key === aiKey ? { ...m, loading: false, content: "（没有返回内容）" } : m)));
+      // 全程无内容（挂起轮至少有 approval part，不会走到这）
+      if (partsRef.current.length === 0) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.key === aiKey
+              ? { ...m, loading: false, content: "（没有返回内容）" }
+              : m,
+          ),
+        );
+      }
+    } catch (e) {
+      const err = e as Error;
+      if (err.name === "AbortError") return;
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.key === aiKey
+            ? { ...m, loading: false, content: `⚠️ ${err.message}` }
+            : m,
+        ),
+      );
+    } finally {
+      setLoading(false);
+      abortRef.current = null;
     }
-  } catch (e) {
-    const err = e as Error;
-    if (err.name === "AbortError") return;
-    setMessages((prev) => prev.map((m) => (m.key === aiKey ? { ...m, loading: false, content: `⚠️ ${err.message}` } : m)));
-  } finally {
-    setLoading(false);
-    abortRef.current = null;
-  }
-}, [loading, userAvatar, aiAvatar, consumeStream, resetParts]);
+  },
+  [loading, userAvatar, aiAvatar, consumeStream, resetParts],
+);
 ```
 
 > 挂起轮（approval 帧）会正常关闭 loading 并渲染卡片；「待审批期间发新消息」由后端守卫返回 error 帧提示。
@@ -849,8 +936,18 @@ const resolvePendingApprovalLocally = useCallback(
         return {
           ...m,
           content: (m.content as MessagePart[]).map((p) =>
-            p.type === "approval" && p.approval.orderNo === orderNo && p.approval.status === "pending"
-              ? { type: "approval", approval: { ...p.approval, status: "resolved", approved: decision.approved, note: decision.note ?? null } }
+            p.type === "approval" &&
+            p.approval.orderNo === orderNo &&
+            p.approval.status === "pending"
+              ? {
+                  type: "approval",
+                  approval: {
+                    ...p.approval,
+                    status: "resolved",
+                    approved: decision.approved,
+                    note: decision.note ?? null,
+                  },
+                }
               : p,
           ),
         };
@@ -872,9 +969,21 @@ const decideApproval = useCallback(
     // 追加决策留痕气泡 + 新 AI 占位气泡
     setMessages((prev) => [
       ...prev,
-      { key: `u-${Date.now()}`, role: "user", placement: "end", avatar: userAvatar,
-        content: `【审批】${approved ? "同意" : "拒绝"}退款${note ? `：${note}` : ""}` },
-      { key: aiKey, role: "assistant", placement: "start", avatar: aiAvatar, loading: true, content: [] },
+      {
+        key: `u-${Date.now()}`,
+        role: "user",
+        placement: "end",
+        avatar: userAvatar,
+        content: `【审批】${approved ? "同意" : "拒绝"}退款${note ? `：${note}` : ""}`,
+      },
+      {
+        key: aiKey,
+        role: "assistant",
+        placement: "start",
+        avatar: aiAvatar,
+        loading: true,
+        content: [],
+      },
     ]);
 
     const controller = new AbortController();
@@ -885,8 +994,15 @@ const decideApproval = useCallback(
       const token = getToken();
       const res = await fetch("/api/ai/chat/resume", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ conversationId: conversationIdRef.current, approved, note }),
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          conversationId: conversationIdRef.current,
+          approved,
+          note,
+        }),
         signal: controller.signal,
       });
       if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
@@ -894,13 +1010,26 @@ const decideApproval = useCallback(
     } catch (e) {
       const err = e as Error;
       if (err.name === "AbortError") return;
-      setMessages((prev) => prev.map((m) => (m.key === aiKey ? { ...m, loading: false, content: `⚠️ ${err.message}` } : m)));
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.key === aiKey
+            ? { ...m, loading: false, content: `⚠️ ${err.message}` }
+            : m,
+        ),
+      );
     } finally {
       setLoading(false);
       abortRef.current = null;
     }
   },
-  [loading, userAvatar, aiAvatar, consumeStream, resetParts, resolvePendingApprovalLocally],
+  [
+    loading,
+    userAvatar,
+    aiAvatar,
+    consumeStream,
+    resetParts,
+    resolvePendingApprovalLocally,
+  ],
 );
 ```
 
@@ -927,9 +1056,11 @@ const toBubbleItems = useCallback(
 ```ts
 export function hasPendingApproval(messages: BubbleItemType[]): boolean {
   return messages.some(
-    (m) => Array.isArray(m.content) && (m.content as MessagePart[]).some(
-      (p) => p.type === "approval" && p.approval.status === "pending",
-    ),
+    (m) =>
+      Array.isArray(m.content) &&
+      (m.content as MessagePart[]).some(
+        (p) => p.type === "approval" && p.approval.status === "pending",
+      ),
   );
 }
 ```
@@ -972,9 +1103,15 @@ export function ApprovalCard({ approval }: { approval: ApprovalMeta }) {
           <Tag color="orange">人工审批</Tag>
           <Typography.Text strong>退款审批请求</Typography.Text>
         </Space>
-        <Typography.Text type="secondary">订单号：{approval.orderNo}</Typography.Text>
-        <Typography.Text type="secondary">退款金额：¥{approval.amount}</Typography.Text>
-        <Typography.Text type="secondary">原因：{approval.reason}</Typography.Text>
+        <Typography.Text type="secondary">
+          订单号：{approval.orderNo}
+        </Typography.Text>
+        <Typography.Text type="secondary">
+          退款金额：¥{approval.amount}
+        </Typography.Text>
+        <Typography.Text type="secondary">
+          原因：{approval.reason}
+        </Typography.Text>
         {resolved ? (
           <Tag color={approval.approved ? "green" : "red"}>
             {approval.approved ? "已同意" : "已拒绝"}
@@ -989,10 +1126,18 @@ export function ApprovalCard({ approval }: { approval: ApprovalMeta }) {
               placeholder="审批备注（拒绝时建议填写原因）"
             />
             <Space>
-              <Button type="primary" disabled={!onDecide} onClick={() => onDecide?.(approval, true, note)}>
+              <Button
+                type="primary"
+                disabled={!onDecide}
+                onClick={() => onDecide?.(approval, true, note)}
+              >
                 同意退款
               </Button>
-              <Button danger disabled={!onDecide} onClick={() => onDecide?.(approval, false, note)}>
+              <Button
+                danger
+                disabled={!onDecide}
+                onClick={() => onDecide?.(approval, false, note)}
+              >
                 拒绝
               </Button>
             </Space>
@@ -1020,7 +1165,11 @@ const registry: Record<string, React.FC<Record<string, unknown>>> = {
 
 export function renderComponent(name: string, props: Record<string, unknown>) {
   const Cmp = registry[name];
-  return Cmp ? <Cmp {...props} /> : <div style={{ color: "#999" }}>未知组件：{name}</div>;
+  return Cmp ? (
+    <Cmp {...props} />
+  ) : (
+    <div style={{ color: "#999" }}>未知组件：{name}</div>
+  );
 }
 ```
 
@@ -1035,7 +1184,10 @@ import { Column } from "@ant-design/plots";
 
 /** 季度对比图（props 与后端 compare_growth 工具 write 的 data 对齐） */
 export default function QuarterCompareChart({
-  from, to, growth, trend,
+  from,
+  to,
+  growth,
+  trend,
 }: {
   from: { label: string; total: number };
   to: { label: string; total: number };
@@ -1047,8 +1199,18 @@ export default function QuarterCompareChart({
     { label: to.label, value: to.total },
   ];
   return (
-    <div style={{ border: "1px solid var(--color-line)", borderRadius: 12, padding: 12, marginTop: 8, maxWidth: 420 }}>
-      <b style={{ fontSize: 13 }}>季度对比：{from.label} → {to.label}（环比 +{growth}%）</b>
+    <div
+      style={{
+        border: "1px solid var(--color-line)",
+        borderRadius: 12,
+        padding: 12,
+        marginTop: 8,
+        maxWidth: 420,
+      }}
+    >
+      <b style={{ fontSize: 13 }}>
+        季度对比：{from.label} → {to.label}（环比 +{growth}%）
+      </b>
       <Column data={data} xField="label" yField="value" height={180} />
       <Column data={trend} xField="month" yField="value" height={140} />
     </div>
@@ -1080,12 +1242,18 @@ export function renderParts(parts: MessagePart[]): ReactNode {
         if (p.type === "text") {
           return p.text ? (
             <div key={i} className="md-body">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{p.text}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {p.text}
+              </ReactMarkdown>
             </div>
           ) : null;
         }
-        if (p.type === "approval") return <ApprovalCard key={i} approval={p.approval} />;
-        if (p.type === "component") return <Fragment key={i}>{renderComponent(p.name, p.props)}</Fragment>;
+        if (p.type === "approval")
+          return <ApprovalCard key={i} approval={p.approval} />;
+        if (p.type === "component")
+          return (
+            <Fragment key={i}>{renderComponent(p.name, p.props)}</Fragment>
+          );
         return null;
       })}
     </>
@@ -1132,22 +1300,22 @@ const { ..., decideApproval } = useChatStream({ ... });
 
 ## 四、验证清单（按顺序执行）
 
-启动：`services/mall-api`(8080) → `apps/ai`(3001) → `apps/web`(5173)。
+启动：`services/mall-api`(8181) → `apps/ai`(3001) → `apps/web`(5173)。
 
-| # | 场景 | 预期 |
-|---|------|------|
-| 1 | 普通聊天（"你好"） | markdown 正常，行为与改造前一致 |
-| 2 | 退单 ≤500 元 | 不挂起，直接退款成功回复 |
-| 3 | 退单 >500 元 | 文本流 → 审批卡片出现（loading 关闭）；消息表该行 content 含 approval part、meta.status=pending |
-| 4 | 待审批时发新消息 | error 帧：「当前会话有一笔退款待审批…」（可选：Sender 置灰） |
-| 5 | 刷新页面 | 恢复历史：卡片仍为 pending 带按钮 |
-| 6 | 点同意 | 旧卡片立即变「已同意」；追加【审批】留痕气泡；resume 流式输出退款成功回复；meta→resolved |
-| 7 | 点拒绝（填原因） | resume 后模型礼貌拒答；刷新后卡片显示「已拒绝：原因」 |
-| 8 | 双开标签页重复审批 | 第二次报「该审批已处理」（幂等闩生效） |
-| 9 | "对比 Q2 和 Q3 的销售额" | 文本 → 图表组件 → 总结文本，三段同气泡；消息表 content 为三段 parts |
-| 10 | 图表轮刷新恢复 | 图表按 meta 数据重渲染（数据驱动，非截图） |
-| 11 | 重启 ai-service 后做 #6 | resume 依然可用（PostgresSaver 持久化 checkpoint） |
-| 12 | abort 中断流 | 与现状一致：不落库 assistant |
+| #   | 场景                     | 预期                                                                                            |
+| --- | ------------------------ | ----------------------------------------------------------------------------------------------- |
+| 1   | 普通聊天（"你好"）       | markdown 正常，行为与改造前一致                                                                 |
+| 2   | 退单 ≤500 元             | 不挂起，直接退款成功回复                                                                        |
+| 3   | 退单 >500 元             | 文本流 → 审批卡片出现（loading 关闭）；消息表该行 content 含 approval part、meta.status=pending |
+| 4   | 待审批时发新消息         | error 帧：「当前会话有一笔退款待审批…」（可选：Sender 置灰）                                    |
+| 5   | 刷新页面                 | 恢复历史：卡片仍为 pending 带按钮                                                               |
+| 6   | 点同意                   | 旧卡片立即变「已同意」；追加【审批】留痕气泡；resume 流式输出退款成功回复；meta→resolved        |
+| 7   | 点拒绝（填原因）         | resume 后模型礼貌拒答；刷新后卡片显示「已拒绝：原因」                                           |
+| 8   | 双开标签页重复审批       | 第二次报「该审批已处理」（幂等闩生效）                                                          |
+| 9   | "对比 Q2 和 Q3 的销售额" | 文本 → 图表组件 → 总结文本，三段同气泡；消息表 content 为三段 parts                             |
+| 10  | 图表轮刷新恢复           | 图表按 meta 数据重渲染（数据驱动，非截图）                                                      |
+| 11  | 重启 ai-service 后做 #6  | resume 依然可用（PostgresSaver 持久化 checkpoint）                                              |
+| 12  | abort 中断流             | 与现状一致：不落库 assistant                                                                    |
 
 后端联调前可先 curl 验证 SSE 协议：
 

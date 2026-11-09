@@ -123,15 +123,6 @@ export default function Sidebar() {
           <div style={{ fontSize: 15.5, fontWeight: 700, letterSpacing: 0.5 }}>
             AI Mall 后台
           </div>
-          <div
-            style={{
-              fontSize: 11.5,
-              color: "var(--color-ink-3)",
-              letterSpacing: 2,
-            }}
-          >
-            FRESH CONSOLE
-          </div>
         </div>
       </div>
 

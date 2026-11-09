@@ -5,7 +5,7 @@
  *
  * 鉴权约定：调用方传入用户 JWT，透传给 Java，保持与前端直连一致的权限模型。
  */
-const BASE = process.env.MALL_API_BASE ?? "http://localhost:8080";
+const BASE = process.env.MALL_API_BASE ?? "http://localhost:8181";
 
 /** Java 端统一返回包装 */
 export interface Result<T> {

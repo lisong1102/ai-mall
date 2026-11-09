@@ -41,7 +41,7 @@ services:
       dockerfile: apps/ai/Dockerfile
     container_name: ai-mall-ai
     environment:
-      MALL_API_BASE: http://mall-api:8080
+      MALL_API_BASE: http://mall-api:8181
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
       POSTGRES_DB: ai_mall

@@ -188,6 +188,12 @@ body {
   padding: 0;
   font-size: 0.85em;
 }
+/* 让 highlight.js 主题色与自定义深绿背景融合 */
+.md-body pre code.hljs {
+  background: transparent;
+  color: inherit;
+  padding: 0;
+}
 .md-body blockquote {
   border-left: 3px solid var(--color-jade-soft);
   padding-left: 12px;

@@ -23,11 +23,10 @@ import {
   WELCOME_MESSAGE,
 } from "@/components/chat/constants";
 import ChatConversationList from "./-ChatConversationList";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { MessagePart } from "@/api/ai/chat";
 import { renderParts } from "@/components/chat/render-parts";
 import { ApprovalActionContext } from "@/components/chat/ApprovalCard";
+import MarkdownRenderer from "@/components/chat/MarkdownRenderer";
 
 const convItems: NonNullable<ConversationsProps["items"]> = conversations.map(
   (c) => ({
@@ -207,11 +206,7 @@ function AIChat() {
                       Array.isArray(content) ? (
                         renderParts(content as MessagePart[])
                       ) : typeof content === "string" ? (
-                        <div className="md-body">
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                            {content}
-                          </ReactMarkdown>
-                        </div>
+                        <MarkdownRenderer content={content} />
                       ) : (
                         content
                       ),

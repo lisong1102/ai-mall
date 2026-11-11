@@ -1,13 +1,12 @@
 import { useState } from "react";
 import { Bubble } from "@ant-design/x";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import AssistantHeader from "./assistant-header";
 import AssistantFooter from "./assistant-footer";
 import { WELCOME_MESSAGE, aiAvatar, userAvatar } from "../../chat/constants";
 import { useChatStream } from "@/hooks/use-chat-stream";
 import { renderParts } from "@/components/chat/render-parts";
 import { MessagePart } from "@/api/ai/chat";
+import MarkdownRenderer from "@/components/chat/MarkdownRenderer";
 
 export default function AIAssistant() {
   const [input, setInput] = useState("");
@@ -56,11 +55,7 @@ export default function AIAssistant() {
                 Array.isArray(content) ? (
                   renderParts(content as MessagePart[])
                 ) : typeof content === "string" ? (
-                  <div className="md-body">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {content}
-                    </ReactMarkdown>
-                  </div>
+                  <MarkdownRenderer content={content} />
                 ) : (
                   content
                 ),
